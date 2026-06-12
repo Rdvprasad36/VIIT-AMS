@@ -1,0 +1,142 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "An institutional user card containing role, department, and credentials.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "description": "Unique numeric ID" },
+        "name": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "Institutional email handle" },
+        "password_hash": { "type": "string", "description": "Bcrypt password hash" },
+        "role": { "type": "string", "enum": ["super_admin", "asset_manager", "employee", "auditor", "maintenance_team", "web_developer"], "description": "Access control role" },
+        "department": { "type": "string", "description": "Academic or operational department" },
+        "created_at": { "type": "string", "format": "date-time", "description": "ISO registration timestamp" }
+      },
+      "required": ["id", "name", "email", "password_hash", "role", "department", "created_at"]
+    },
+    "Asset": {
+      "title": "Asset",
+      "description": "An asset inventory status record tracking location, status, cost, and serial identifiers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "description": "Unique numeric identifier" },
+        "asset_tag": { "type": "string", "description": "Institutional asset tag identifier code" },
+        "name": { "type": "string", "description": "Asset name or description" },
+        "category": { "type": "string", "description": "Asset categorization category" },
+        "status": { "type": "string", "enum": ["available", "allocated", "maintenance", "disposed"], "description": "Current asset availability status" },
+        "purchase_date": { "type": "string", "description": "Purchase date tracking" },
+        "cost": { "type": "number", "description": "Acquisition cost of asset in INR" },
+        "serial_number": { "type": "string", "description": "Physical serial number of manufacturer" },
+        "location": { "type": "string", "description": "Current institutional location" },
+        "qr_code": { "type": "string", "description": "Scannable QR configuration payload matching the asset tag" },
+        "created_at": { "type": "string", "format": "date-time", "description": "ISO timestamp of catalog creation" }
+      },
+      "required": ["id", "asset_tag", "name", "category", "status", "purchase_date", "cost", "serial_number", "location", "qr_code", "created_at"]
+    },
+    "Request": {
+      "title": "Request",
+      "description": "An asset requisition or allocation request submitted by employees and approved by managers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "description": "Unique allocation request ID" },
+        "asset_id": { "type": "integer", "description": "Referenced asset identifier" },
+        "user_id": { "type": "integer", "description": "Referenced user requestor ID" },
+        "manager_id": { "type": "integer", "description": "Referenced manager approver ID" },
+        "purpose": { "type": "string", "description": "Requisition statement of purpose" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Allocation status" },
+        "request_date": { "type": "string", "format": "date-time", "description": "ISO timestamp of claim" },
+        "action_date": { "type": "string", "format": "date-time", "description": "ISO timestamp of status update" },
+        "comments": { "type": "string", "description": "Manager feedback description details" }
+      },
+      "required": ["id", "asset_id", "user_id", "purpose", "status", "request_date"]
+    },
+    "MaintenanceLog": {
+      "title": "MaintenanceLog",
+      "description": "Fault tracking records and repair dispatch tickets for hardware faults.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "description": "Unique maintenance incident log ID" },
+        "asset_id": { "type": "integer", "description": "Referenced broken asset ID" },
+        "reported_by": { "type": "integer", "description": "Referenced employee reporter ID" },
+        "assigned_to": { "type": "integer", "description": "Referenced engineering technician responder ID" },
+        "issue_description": { "type": "string", "description": "Incident details description of physical damage" },
+        "repair_status": { "type": "string", "enum": ["reported", "in_progress", "resolved", "unrepairable"], "description": "Active status of repair lifecycle" },
+        "cost": { "type": "number", "description": "Component or service costs incurred in INR" },
+        "created_at": { "type": "string", "format": "date-time", "description": "ISO timestamp of report" },
+        "updated_at": { "type": "string", "format": "date-time", "description": "ISO timestamp of updates cascading" }
+      },
+      "required": ["id", "asset_id", "reported_by", "issue_description", "repair_status", "cost", "created_at", "updated_at"]
+    },
+    "SystemAudit": {
+      "title": "SystemAudit",
+      "description": "Chronological system logging records tracking institutional operation audits.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "description": "Unique serial table ID" },
+        "user_id": { "type": "integer", "description": "Referenced user ID initiating event" },
+        "user_name": { "type": "string", "description": "Full name of the performer" },
+        "action_type": { "type": "string", "description": "Operation action type" },
+        "entity_table": { "type": "string", "description": "Database collection target table modified" },
+        "entity_id": { "type": "integer", "description": "Identifier ID of the database item modified" },
+        "details": { "type": "string", "description": "System events log status text details" },
+        "performed_at": { "type": "string", "format": "date-time", "description": "ISO timestamp of operations execution" }
+      },
+      "required": ["id", "action_type", "entity_table", "details", "performed_at"]
+    },
+    "Suggestion": {
+      "title": "Suggestion",
+      "description": "Suggestions or bug reports recorded to the website dev team.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "description": "Unique ticket ID" },
+        "user_name": { "type": "string", "description": "Sender name" },
+        "user_email": { "type": "string", "format": "email", "description": "Sender email handle" },
+        "user_role": { "type": "string", "description": "Access control role of the sender" },
+        "type": { "type": "string", "enum": ["issue", "suggestion"], "description": "Ticket type classification" },
+        "message": { "type": "string", "description": "Content of the submission message details" },
+        "created_at": { "type": "string", "format": "date-time", "description": "ISO submission timestamp" }
+      },
+      "required": ["id", "user_name", "user_email", "user_role", "type", "message", "created_at"]
+    },
+    "BudgetConfig": {
+      "title": "BudgetConfig",
+      "description": "Global institutional assets SLA financial cap adjustments overrides.",
+      "type": "object",
+      "properties": {
+        "grossCapitalValuationOverride": { "type": ["number", "null"], "description": "Gross Asset Cap valuation override" },
+        "cumulativeOutlaysOverride": { "type": ["number", "null"], "description": "Cumulative target expenditures override" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of system cell authorization user accounts"
+    },
+    "/assets/{assetId}": {
+      "schema": "Asset",
+      "description": "Collection of tracked institutional assets"
+    },
+    "/requests/{requestId}": {
+      "schema": "Request",
+      "description": "Collection of requisition and allocation claims"
+    },
+    "/maintenance_logs/{logId}": {
+      "schema": "MaintenanceLog",
+      "description": "Collection of dispatch repair technical cards"
+    },
+    "/audits/{auditId}": {
+      "schema": "SystemAudit",
+      "description": "Collection of system audit trail cards"
+    },
+    "/suggestions/{suggestionId}": {
+      "schema": "Suggestion",
+      "description": "Collection of bug reports and suggestion tickets"
+    },
+    "/budgets/config": {
+      "schema": "BudgetConfig",
+      "description": "Unique global budgets valuation overrides singleton"
+    }
+  }
+}

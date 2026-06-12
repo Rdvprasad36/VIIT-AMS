@@ -1,0 +1,6 @@
+{
+  "name": "VIIT Enterprise Asset Management System",
+  "description": "Enterprise Asset Management System (AMS) for Vignan's Institute of Information Technology (VIIT), managed by VIIT's System Cell.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

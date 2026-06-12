@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Global Safety Net default catch-all deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. User Credentials collection rules - allow unauthenticated server-side middleware access
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // 3. Tracked Hardware Assets tag collection rules - allow unauthenticated server-side middleware access
+    match /assets/{assetId} {
+      allow read, write: if true;
+    }
+
+    // 4. Requisition / Allocation claims requests rules - allow unauthenticated server-side middleware access
+    match /requests/{requestId} {
+      allow read, write: if true;
+    }
+
+    // 5. Maintenance logs and technical dispatch tags - allow unauthenticated server-side middleware access
+    match /maintenance_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // 6. System Compliance Audit trails - allow unauthenticated server-side middleware access
+    match /audits/{auditId} {
+      allow read, write: if true;
+    }
+
+    // 7. Suggestions and issue feedback tickets - allow unauthenticated server-side middleware access
+    match /suggestions/{suggestionId} {
+      allow read, write: if true;
+    }
+
+    // 8. SLA budget target limits overrides - allow unauthenticated server-side middleware access
+    match /budgets/{configDoc} {
+      allow read, write: if true;
+    }
+  }
+}
