@@ -10,6 +10,7 @@ export interface AuthenticatedRequest extends Request {
     email: string;
     role: UserRole;
     department: string;
+    phone?: string;
   };
 }
 
@@ -30,6 +31,7 @@ export function verifyToken(req: AuthenticatedRequest, res: Response, next: Next
       email: string;
       role: UserRole;
       department: string;
+      phone?: string;
     };
     req.user = decoded;
     next();

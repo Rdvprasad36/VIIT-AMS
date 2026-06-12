@@ -344,7 +344,7 @@ router.post("/auth/reset-password", (req, res) => {
 
 // Update Profile (Logged-in user updates own name or department, NOT email or role)
 router.put("/users/profile", verifyToken, (req: AuthenticatedRequest, res) => {
-  const { name, department } = req.body;
+  const { name, department, phone } = req.body;
   if (!name || !department) {
     return res.status(400).json({ error: "Name and department are required." });
   }
@@ -358,6 +358,9 @@ router.put("/users/profile", verifyToken, (req: AuthenticatedRequest, res) => {
   // Update fields
   user.name = name;
   user.department = department;
+  if (phone !== undefined) {
+    user.phone = phone;
+  }
   writeDb(db);
 
   logSystemEvent(user.id, user.name, "USER_PROFILE_UPDATED", "users", user.id, `User updated profile: ${name} (${department})`);
@@ -369,7 +372,8 @@ router.put("/users/profile", verifyToken, (req: AuthenticatedRequest, res) => {
       name: user.name, 
       email: user.email, 
       role: user.role, 
-      department: user.department 
+      department: user.department,
+      phone: user.phone
     },
     JWT_SECRET,
     { expiresIn: "8h" }
@@ -382,7 +386,8 @@ router.put("/users/profile", verifyToken, (req: AuthenticatedRequest, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
-      department: user.department
+      department: user.department,
+      phone: user.phone
     }
   });
 });
@@ -455,7 +460,7 @@ router.get("/technicians", verifyToken, (req: AuthenticatedRequest, res) => {
 
 // Create User (User Generation by Super Admin)
 router.post("/users", verifyToken, authorize(["super_admin", "web_developer"]), (req: AuthenticatedRequest, res) => {
-  const { name, email, password, role, department, employee_type } = req.body;
+  const { name, email, password, role, department, employee_type, phone } = req.body;
 
   if (!name || !email || !password || !role || !department) {
     return res.status(400).json({ error: "All account parameters (name, email, password, role, department) are required." });
@@ -491,6 +496,7 @@ router.post("/users", verifyToken, authorize(["super_admin", "web_developer"]), 
     employee_type: employee_type || undefined,
     password_plain: password, // Retain plain key code for dev team view
     created_at: new Date().toISOString(),
+    phone: phone || undefined,
   };
 
   db.users.push(newUser);
@@ -747,7 +753,7 @@ router.post("/assets/:id/request-return", verifyToken, (req: AuthenticatedReques
   if (user.role === "employee") {
     const hasApprovedClaim = db.requests.some(
       (r) => r.asset_id === assetId && r.user_id === user.id && r.status === "approved"
-    );
+    ) || asset.allocated_to_id === user.id;
     if (!hasApprovedClaim) {
       return res.status(403).json({ error: "You are not authorized to return assets not allocated to your profile." });
     }
@@ -756,16 +762,39 @@ router.post("/assets/:id/request-return", verifyToken, (req: AuthenticatedReques
   // Set asset state to return_pending
   asset.status = "return_pending";
 
+  const { purpose } = req.body;
+  const returnPurpose = purpose ? `[RETURN REQUEST] ${purpose}` : "[RETURN REQUEST] Requesting to hand-back this asset to system cell.";
+
   const newReturnReq = {
     id: db.requests.length > 0 ? Math.max(0, ...db.requests.map((r) => r.id || 0)) + 1 : 1,
     asset_id: assetId,
     user_id: user.id,
-    purpose: "[RETURN REQUEST] Requesting to hand-back this asset to system cell.",
+    purpose: returnPurpose,
     status: "pending" as RequestStatus,
     request_date: new Date().toISOString()
   };
   
   db.requests.push(newReturnReq);
+  
+  // Record utilization snapshot history entry with submit date
+  db.utilization_reports = db.utilization_reports || [];
+  const totalAssets = db.assets.length;
+  const availableCount = db.assets.filter((a) => a.status === "available").length;
+  const allocatedCount = db.assets.filter((a) => a.status === "allocated" || a.status === "return_pending").length;
+  const maintenanceCount = db.assets.filter((a) => a.status === "maintenance").length;
+
+  const returnReport = {
+    id: db.utilization_reports.length > 0 ? Math.max(0, ...db.utilization_reports.map((r) => r.id || 0)) + 1 : 1,
+    report_date: new Date().toISOString(),
+    generated_by_id: user.id,
+    generated_by_name: user.name,
+    total_assets: totalAssets,
+    allocated_assets: allocatedCount,
+    available_assets: availableCount,
+    maintenance_assets: maintenanceCount
+  };
+  db.utilization_reports.push(returnReport);
+
   db.assets[assetIdx] = asset;
   writeDb(db);
 
@@ -776,6 +805,15 @@ router.post("/assets/:id/request-return", verifyToken, (req: AuthenticatedReques
     "assets",
     assetId,
     `Asset #${asset.asset_tag} (${asset.name}) is submitted for return by ${user.name}. Awaiting coordinator approval.`
+  );
+
+  logSystemEvent(
+    user.id,
+    user.name,
+    "UTILIZATION_REPORT_GENERATED",
+    "utilization_reports",
+    returnReport.id,
+    `Utilization Report #${returnReport.id} auto-recorded on return request submitted by ${user.name}.`
   );
 
   res.json({ message: "Asset return requested successfully. Awaiting Asset Manager confirmation.", asset });
@@ -950,6 +988,25 @@ router.put("/requests/:id/action", verifyToken, authorize(["super_admin", "asset
       asset.status = "allocated";
     }
   }
+
+  // Record utilization snapshot history entry during request status update
+  db.utilization_reports = db.utilization_reports || [];
+  const totalAssets = db.assets.length;
+  const availableCount = db.assets.filter((a) => a.status === "available").length;
+  const allocatedCount = db.assets.filter((a) => a.status === "allocated" || a.status === "return_pending").length;
+  const maintenanceCount = db.assets.filter((a) => a.status === "maintenance").length;
+
+  const actionReport = {
+    id: db.utilization_reports.length > 0 ? Math.max(0, ...db.utilization_reports.map((r) => r.id || 0)) + 1 : 1,
+    report_date: new Date().toISOString(),
+    generated_by_id: req.user!.id,
+    generated_by_name: req.user!.name,
+    total_assets: totalAssets,
+    allocated_assets: allocatedCount,
+    available_assets: availableCount,
+    maintenance_assets: maintenanceCount
+  };
+  db.utilization_reports.push(actionReport);
 
   writeDb(db);
 
@@ -1270,7 +1327,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
           addNotification(
             `warranty-soon-${asset.id}`,
             "warranty_expiry",
-            "⚠️ Warranty Expiring Soon",
+            "Warranty Expiring Soon",
             `The warranty for ${asset.name} (#${asset.asset_tag}) will expire on ${expDate.toLocaleDateString()} (${diffDays === 0 ? "today" : `in ${diffDays} days`}).`,
             "warning",
             asset.created_at
@@ -1279,7 +1336,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
           addNotification(
             `warranty-expired-${asset.id}`,
             "warranty_expiry",
-            "🔴 Warranty Expired",
+            "Warranty Expired",
             `The warranty for ${asset.name} (#${asset.asset_tag}) expired on ${expDate.toLocaleDateString()}.`,
             "danger",
             asset.created_at
@@ -1299,7 +1356,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
         addNotification(
           `req-pending-${r.id}`,
           "request_pending",
-          "📋 Pending Requisition Claim",
+          "Pending Requisition Claim",
           `${reqName} requested allocation for ${name} (#${tag}) for: "${r.purpose}".`,
           "info",
           r.request_date
@@ -1316,7 +1373,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
         addNotification(
           `maint-unresolved-${m.id}`,
           "maintenance_all",
-          "🛠️ Unresolved Maintenance Alert",
+          "Unresolved Maintenance Alert",
           `Issue "${m.issue_description}" reported for ${name} (#${tag}) at Room ${asset ? asset.location : "N/A"}.`,
           "warning",
           m.created_at
@@ -1338,7 +1395,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
           addNotification(
             `req-approved-${r.id}`,
             "request_actioned",
-            "✅ Requisition Approved",
+            "Requisition Approved",
             `Your allocation request for ${name} (#${tag}) has been APPROVED. Go to Admin Office for physical pickup. Note: "${r.comments || 'No comments'}"`,
             "info",
             r.action_date || r.request_date
@@ -1347,7 +1404,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
           addNotification(
             `req-rejected-${r.id}`,
             "request_actioned",
-            "❌ Requisition Declined",
+            "Requisition Declined",
             `Your allocation request for ${name} was declined. Comments: "${r.comments || 'No comments'}"`,
             "warning",
             r.action_date || r.request_date
@@ -1369,7 +1426,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
           addNotification(
             `my-warranty-soon-${asset.id}`,
             "warranty_expiry",
-            "⚠️ Your Asset's Warranty Expiring",
+            "Your Asset's Warranty Expiring",
             `The warranty for your assigned asset ${asset.name} (#${asset.asset_tag}) will expire on ${expDate.toLocaleDateString()}. Please report any existing performance decay or hardware issues.`,
             "warning",
             asset.created_at
@@ -1389,7 +1446,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
           addNotification(
             `maint-resolved-${m.id}`,
             "maintenance_reported",
-            "🎉 Reported Issue Solved",
+            "Reported Issue Solved",
             `Your reported issue for ${name} (#${tag}) has been fixed by clinical maintenance crew. Tech comments: "${m.issue_description}".`,
             "info",
             m.updated_at || m.created_at
@@ -1398,7 +1455,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
           addNotification(
             `maint-unrepairable-${m.id}`,
             "maintenance_reported",
-            "🚨 Asset Declared Unrepairable",
+            "Asset Declared Unrepairable",
             `Your reported asset ${name} (#${tag}) is declared unrepairable and decommissioned. Proceed with filing a fresh allocation claim.`,
             "danger",
             m.updated_at || m.created_at
@@ -1420,7 +1477,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
         addNotification(
           `maint-assigned-${m.id}`,
           "maintenance_assigned",
-          "🔧 Assigned Repair Ticket",
+          "Assigned Repair Ticket",
           `Active repair assigned: fix ${name} (#${tag}) at room location: ${room}. Issue reported: "${m.issue_description}"`,
           "warning",
           m.created_at
@@ -1429,7 +1486,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
         addNotification(
           `maint-unassigned-${m.id}`,
           "maintenance_unassigned",
-          "📥 New Tech Job Request",
+          "New Tech Job Request",
           `Unassigned clinical hardware breakdown reported for ${name} at Room ${room}: "${m.issue_description}"`,
           "info",
           m.created_at
@@ -1444,7 +1501,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
     addNotification(
       `audit-count-summary`,
       "audit_general",
-      "📊 Audit Compliance Database",
+      "Audit Compliance Database",
       `System ledger has logged ${db.audits.length} operations. Verify digital compliance of newly active hardware allocations.`,
       "info",
       new Date().toISOString()
@@ -1456,7 +1513,7 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
         addNotification(
           `audit-highval-${asset.id}`,
           "audit_highval",
-          "💰 High-Value Asset Ledger",
+          "High-Value Asset Ledger",
           `Compliance inspection required: High-value resource ${asset.name} (#${asset.asset_tag}) registered with cost: ₹${asset.cost}.`,
           "warning",
           asset.created_at

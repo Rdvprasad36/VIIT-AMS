@@ -30,6 +30,7 @@ export interface User {
   reset_code?: string;
   is_trial?: boolean;
   is_disabled?: boolean;
+  phone?: string;
 }
 
 export interface Asset {
@@ -195,6 +196,22 @@ function getLocalDbBackup(): DatabaseSchema {
       fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
     }
   }
+
+  let localBackupChanged = false;
+  if (db.users) {
+    db.users.forEach((u, idx) => {
+      if (!u.phone) {
+        const random9Digit = Math.floor(100000000 + Math.random() * 900000000);
+        u.phone = `+91 9${random9Digit}`;
+        localBackupChanged = true;
+      }
+    });
+  }
+
+  if (localBackupChanged) {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+  }
+
   if (!db.suggestions) db.suggestions = [];
   if (!db.budgets) db.budgets = { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null };
   return db;
@@ -227,9 +244,15 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
       throw err;
     }
     let users: User[] = [];
-    usersSnapshot.forEach((doc) => {
-      users.push(doc.data() as User);
-    });
+    for (const d of usersSnapshot.docs) {
+      const u = d.data() as User;
+      if (!u.phone) {
+        const random9Digit = Math.floor(100000000 + Math.random() * 900000000);
+        u.phone = `+91 9${random9Digit}`;
+        await withRetry(() => setDoc(doc(firestoreDb, "users", String(u.id)), u));
+      }
+      users.push(u);
+    }
 
     // 2. Seed both Firestore and Local if Firestore contains no users
     if (users.length === 0) {
@@ -423,6 +446,7 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
         department: "Website Support Team",
         password_plain: "020306",
         created_at: new Date().toISOString(),
+        phone: "+91 9884477551",
       };
       dbCache.users.push(rdvUser);
       await setDoc(doc(firestoreDb, "users", String(rdvUser.id)), rdvUser);
@@ -446,7 +470,8 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
         role: "super_admin",
         department: "Administration Office",
         employee_type: "other",
-        password_plain: "password123"
+        password_plain: "password123",
+        phone: "+91 9123456789"
       },
       {
         id: 8,
@@ -455,7 +480,8 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
         role: "employee",
         department: "Administration Office",
         employee_type: "cse",
-        password_plain: "password123"
+        password_plain: "password123",
+        phone: "+91 9988776655"
       },
       {
         id: 9,
@@ -464,7 +490,8 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
         role: "asset_manager",
         department: "Administration Office",
         employee_type: "other",
-        password_plain: "password123"
+        password_plain: "password123",
+        phone: "+91 9876543210"
       },
       {
         id: 10,
@@ -473,7 +500,8 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
         role: "asset_manager",
         department: "Administration Office",
         employee_type: "other",
-        password_plain: "password123"
+        password_plain: "password123",
+        phone: "+91 9444555666"
       },
       {
         id: 11,
@@ -482,7 +510,8 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
         role: "maintenance_team",
         department: "Administration Office",
         employee_type: "other",
-        password_plain: "password123"
+        password_plain: "password123",
+        phone: "+91 9500044112"
       }
     ];
 
@@ -503,7 +532,8 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
           department: tu.department,
           employee_type: tu.employee_type,
           password_plain: tu.password_plain,
-          created_at: new Date("2026-06-11").toISOString()
+          created_at: new Date("2026-06-11").toISOString(),
+          phone: tu.phone
         };
         dbCache.users.push(newUserObj);
         await setDoc(doc(firestoreDb, "users", String(newUserObj.id)), newUserObj);

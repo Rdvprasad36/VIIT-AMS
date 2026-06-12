@@ -12,6 +12,7 @@ export interface LoggedInUser {
   employee_type?: string;
   read_notifications?: string[];
   is_disabled?: boolean;
+  phone?: string;
 }
 
 export interface User {
@@ -25,6 +26,7 @@ export interface User {
   employee_type?: string;
   is_trial?: boolean;
   is_disabled?: boolean;
+  phone?: string;
 }
 
 export interface Asset {

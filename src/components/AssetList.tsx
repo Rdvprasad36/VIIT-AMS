@@ -17,7 +17,8 @@ import {
   QrCode,
   Tag,
   X,
-  FileCheck
+  FileCheck,
+  Printer
 } from "lucide-react";
 
 interface AssetListProps {
@@ -29,7 +30,7 @@ interface AssetListProps {
   onDeleteAsset: (id: number) => Promise<void>;
   onSubmitRequest: (assetId: number, purpose: string) => Promise<void>;
   onSubmitMaintenance: (assetId: number, issue: string, assignedTo?: number) => Promise<void>;
-  onReturnAsset?: (id: number) => Promise<void>;
+  onReturnAsset?: (id: number, purpose?: string) => Promise<void>;
   requests?: any[];
 }
 
@@ -69,6 +70,11 @@ export default function AssetList({
   // Requisition allocation Form inputs
   const [requestPurpose, setRequestPurpose] = useState("");
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+
+  // Return Form inputs
+  const [activeReturnAsset, setActiveReturnAsset] = useState<Asset | null>(null);
+  const [returnPurpose, setReturnPurpose] = useState("");
+  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
 
   // Fault Form inputs
   const [maintenanceIssue, setMaintenanceIssue] = useState("");
@@ -192,6 +198,25 @@ export default function AssetList({
       alert("Allocation failed to process. Try again.");
     } finally {
       setIsSubmittingRequest(false);
+    }
+  };
+
+  // Submit Return Handler
+  const handleReturnSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeReturnAsset || !returnPurpose.trim()) return;
+
+    try {
+      setIsSubmittingReturn(true);
+      if (onReturnAsset) {
+        await onReturnAsset(activeReturnAsset.id, returnPurpose.trim());
+      }
+      setActiveReturnAsset(null);
+      setReturnPurpose("");
+    } catch (err) {
+      alert("Return request failed to process. Try again.");
+    } finally {
+      setIsSubmittingReturn(false);
     }
   };
 
@@ -472,17 +497,24 @@ export default function AssetList({
                             // If status is "allocated"
                             const isAuthorizedToReturn = 
                               ["super_admin", "asset_manager", "web_developer"].includes(user.role) ||
-                              (user.role === "employee" && requests.some(
-                                r => r.asset_id === asset.id && r.user_id === user.id && r.status === "approved"
+                              (user.role === "employee" && (
+                                asset.allocated_to_id === user.id ||
+                                requests.some(
+                                  r => r.asset_id === asset.id && r.user_id === user.id && r.status === "approved"
+                                )
                               ));
                             
                             if (isAuthorizedToReturn) {
                               return (
                                 <button
                                   onClick={() => {
-                                    const actionText = user.role === "employee" ? "request a return of" : "register a physical return of";
-                                    if (confirm(`Are you sure you want to ${actionText} asset ${asset.name} (#${asset.asset_tag})?`)) {
-                                      onReturnAsset(asset.id);
+                                    if (user.role === "employee") {
+                                      setActiveReturnAsset(asset);
+                                      setReturnPurpose("");
+                                    } else {
+                                      if (confirm(`Confirm physical return of asset ${asset.name} (#${asset.asset_tag})?`)) {
+                                        onReturnAsset(asset.id);
+                                      }
                                     }
                                   }}
                                   className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded-md font-semibold cursor-pointer shadow-xs"
@@ -796,6 +828,64 @@ export default function AssetList({
       )}
 
 
+      {/* 2.5 SUBMIT RETURN MODAL (EMPLOYEE ONLY) */}
+      {activeReturnAsset && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-10 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-scale-in border border-slate-100">
+            <div className="bg-indigo-700 text-white p-5 flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold font-display flex items-center gap-2">
+                  <FileCheck className="w-5 h-5" />
+                  Request Asset Handback & Return
+                </h3>
+                <p className="text-xs text-indigo-100">Submit formal ticket to register handback of this asset</p>
+              </div>
+              <button onClick={() => setActiveReturnAsset(null)} className="text-white hover:text-indigo-200 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleReturnSubmit} className="p-6 space-y-4">
+              <div className="bg-slate-50 p-4 border border-slate-100 rounded-lg">
+                <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Asset Selected to Handback</span>
+                <span className="text-sm font-bold text-slate-700">{activeReturnAsset.name}</span>
+                <span className="text-xs font-bold text-vignanBlue block mt-1">Code: {activeReturnAsset.asset_tag}</span>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Return Reason & Feedback Remarks *</label>
+                <textarea 
+                  required
+                  rows={4}
+                  placeholder="Detail why you are returning this asset. E.g., Academic course semester completed, requesting custom component dynamic upgrade, transferring block lab department..."
+                  value={returnPurpose}
+                  onChange={(e) => setReturnPurpose(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-600 block leading-relaxed"
+                />
+              </div>
+
+              <div className="pt-3 flex justify-end gap-3 border-t border-slate-150">
+                <button 
+                  type="button"
+                  onClick={() => setActiveReturnAsset(null)}
+                  className="px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-500 hover:bg-slate-50"
+                >
+                  Close
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSubmittingReturn}
+                  className="px-5 py-2 bg-indigo-700 hover:bg-indigo-800 text-white rounded-lg text-sm font-semibold transition"
+                >
+                  {isSubmittingReturn ? "Submitting..." : "Submit Return Request"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+
       {/* 3. SUBMIT FAULT MODAL */}
       {activeMaintenanceAsset && (
         <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-10 backdrop-blur-xs">
@@ -886,10 +976,10 @@ export default function AssetList({
             </div>
 
             {/* Simulated Label layout */}
-            <div className="p-6 flex flex-col items-center text-center space-y-4">
+            <div id="printable-tag-area" className="p-6 flex flex-col items-center text-center space-y-4 bg-white">
               {/* Institution Seal heading */}
               <div className="border-b-2 border-slate-900 pb-2 w-full">
-                <span className="text-[11px] font-extrabold uppercase text-slate-800 tracking-tighter">
+                <span className="text-[11px] font-extrabold uppercase text-slate-800 tracking-tighter block">
                   VIGNAN'S INSTITUTE OF INFORMATION TECHNOLOGY
                 </span>
                 <span className="text-[9px] block uppercase font-mono tracking-widest font-bold text-slate-500 mt-0.5">
@@ -954,6 +1044,23 @@ export default function AssetList({
               <div className="w-full text-xs text-slate-400 font-mono flex justify-center items-center gap-1 p-2 border-t border-slate-100 italic">
                 <span>Printable adhesive thermal code label generated by VIIT AMS</span>
               </div>
+            </div>
+
+            {/* Print/Action Controls (Not shown when printing via @media print) */}
+            <div className="p-4 bg-slate-50 border-t border-slate-150 flex gap-2 justify-end print:hidden">
+              <button
+                onClick={() => window.print()}
+                className="flex-1 bg-vignanBlue hover:bg-vignanBlue-hover text-white py-2 px-4 rounded-xl text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              >
+                <Printer className="w-4 h-4" />
+                Print Label
+              </button>
+              <button
+                onClick={() => setSelectedInspectAsset(null)}
+                className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold font-sans transition-colors cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

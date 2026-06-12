@@ -277,7 +277,7 @@ export default function DashboardOverview({
               className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-2 bg-vignanBlue hover:bg-vignanBlue-hover text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>+ Add New Asset</span>
+              <span> Add New Asset</span>
             </button>
           )}
         </div>
@@ -315,19 +315,25 @@ export default function DashboardOverview({
           </p>
         </div>
 
-        {/* BENTO CARD 2: Analytics & Personnel Overview (row-span-2) */}
+        {/* BENTO CARD 2: Total Registered Members (row-span-2) */}
         <div className="lg:col-span-1 lg:row-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between h-full hover:border-vignanBlue transition-colors duration-300">
-          <div className="space-y-4">
-            <div>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Available Immediately</p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <p className="text-3xl font-black text-slate-800 tracking-tight font-display">
-                  {metrics.availableCount}
-                </p>
-                <span className="text-[10px] text-emerald-600 font-mono font-black animate-pulse">● READY</span>
-              </div>
-            </div>
+          <div>
+            <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">Total Registered Members</p>
+            <p className="text-4xl font-black text-slate-800 mt-2 tracking-tight font-display">
+              {metrics.totalUsers || 0}
+            </p>
           </div>
+          
+          <div className="my-4">
+            <p className="text-[11px] text-slate-400 leading-snug font-medium">
+              Verified institutional personnel profiles, support crews and desk managers logged on systems.
+            </p>
+          </div>
+          
+          <p className="text-[11px] text-[#004A99] font-bold flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+            Live Cell Members Active
+          </p>
         </div>
 
         {/* BENTO CARD 3: Recent Requisitions / Allocations Dashboard (row-span-4, col-span-2) */}
@@ -337,7 +343,7 @@ export default function DashboardOverview({
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
               <h3 className="font-bold text-[#004A99] uppercase text-xs tracking-widest flex items-center gap-2">
                 <FileText className="w-4 h-4 text-vignanBlue" />
-                Recent Claim Requisitions
+                Recent Claim details
               </h3>
               <span className="text-[10px] bg-[#E6F0FF] text-[#004A99] px-2.5 py-1 rounded-md font-bold font-mono tracking-tight shrink-0">
                 {pendingRequests.length} OUTSTANDING

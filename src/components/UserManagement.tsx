@@ -11,7 +11,8 @@ import {
   Calendar,
   X,
   PlusCircle,
-  Trash2
+  Trash2,
+  Phone
 } from "lucide-react";
 
 interface UserManagementProps {
@@ -50,6 +51,7 @@ export default function UserManagement({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [role, setRole] = useState<UserRole>("employee");
   const [department, setDepartment] = useState("Administration Office");
   const [employeeType, setEmployeeType] = useState("cse");
@@ -81,6 +83,7 @@ export default function UserManagement({
   );
 
   const getRoleLabel = (role: UserRole) => {
+    if (role === "super_admin") return "Admin";
     return role.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
   };
 
@@ -115,12 +118,14 @@ export default function UserManagement({
         role,
         department,
         employee_type: employeeType,
+        phone,
       });
       setIsOpeningForm(false);
       // Reset variables
       setName("");
       setEmail("");
       setPassword("");
+      setPhone("");
       setRole("employee");
       setDepartment("Administration Office");
       setEmployeeType("cse");
@@ -139,7 +144,7 @@ export default function UserManagement({
         <div>
           <h2 className="text-xl font-bold font-display tracking-tight flex items-center gap-2">
             <Users className="w-5 h-5 text-vignanBlue" />
-            Vignan System Cell Identity Console
+            Vignan System Cell Users Data
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
             Audit institutional authorizations, audit core roles, and generate accounts instantly across departments
@@ -157,7 +162,7 @@ export default function UserManagement({
       {/* Roster lists representation */}
       <div className="bg-white rounded-xl border border-slate-150 overflow-hidden shadow-xs">
         <div className="p-4 bg-slate-50 border-b border-slate-150 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Authorized Personnel Roster</span>
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">users data</span>
           
           <div className="flex items-center gap-3 self-stretch sm:self-auto justify-between sm:justify-end">
             {/* Filter select input */}
@@ -167,12 +172,12 @@ export default function UserManagement({
               className="text-xs font-semibold bg-white border border-slate-250 rounded-lg px-2.5 py-1.5 focus:outline-hidden focus:ring-1 focus:ring-vignanBlue text-slate-650 cursor-pointer shadow-2xs"
             >
               <option value="all">All Roles</option>
-              <option value="super_admin">Super Admin</option>
+              <option value="super_admin">Admin</option>
               <option value="asset_manager">Asset Manager</option>
               <option value="employee">Employee</option>
               <option value="auditor">Auditor</option>
               <option value="maintenance_team">Maintenance Team</option>
-              <option value="web_developer">Web Developer</option>
+          
             </select>
             
             <span className="text-xs font-semibold text-slate-400 font-mono">Count: {filteredUsers.length} listed</span>
@@ -183,17 +188,17 @@ export default function UserManagement({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-white border-b border-slate-150 text-slate-400 font-bold text-xs uppercase tracking-wider">
-                <th className="px-6 py-3.5">ID Badge</th>
-                <th className="px-6 py-3.5">Personnel Name</th>
-                <th className="px-6 py-3.5">Email / Handle</th>
+                <th className="px-6 py-3.5">ID</th>
+                <th className="px-6 py-3.5">Name</th>
+                <th className="px-6 py-3.5">email</th>
+                <th className="px-6 py-3.5">Phone Number</th>
                 {loggedInUser.role === "web_developer" && (
-                  <th className="px-6 py-3.5 text-indigo-600 font-bold">Access Key / Password</th>
+                   <th className="px-6 py-3.5 text-indigo-600 font-bold">password</th>
                 )}
-                <th className="px-6 py-3.5">System Authorization Role</th>
+                <th className="px-6 py-3.5">role</th>
                 <th className="px-6 py-3.5">Employee Type</th>
                 <th className="px-6 py-3.5">Assigned Department</th>
                 <th className="px-6 py-3.5">Enrollment Date</th>
-                <th className="px-6 py-3.5">Status</th>
                 <th className="px-6 py-3.5 text-center">Actions</th>
               </tr>
             </thead>
@@ -233,6 +238,18 @@ export default function UserManagement({
                     {personnel.email}
                   </td>
 
+                  {/* Phone Number */}
+                  <td className="px-6 py-4 whitespace-nowrap font-mono text-xs text-slate-600">
+                    {personnel.phone ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        {personnel.phone}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 italic text-xs">—</span>
+                    )}
+                  </td>
+
                   {/* Password (Visible ONLY to Web Developers) */}
                   {loggedInUser.role === "web_developer" && (
                     <td className="px-6 py-4 whitespace-nowrap font-mono text-xs text-indigo-700 font-bold select-all bg-indigo-50/20 px-4 rounded-lg">
@@ -268,37 +285,10 @@ export default function UserManagement({
                     {personnel.created_at ? new Date(personnel.created_at).toLocaleDateString() : "Historical"}
                   </td>
 
-                  {/* Status Badge */}
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {personnel.is_disabled ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-rose-100 text-rose-700 border border-rose-200 uppercase">
-                        Disabled
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 uppercase">
-                        Active
-                      </span>
-                    )}
-                  </td>
-
                    {/* Actions Trash */}
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     {personnel.id !== loggedInUser.id && (
                       <div className="flex items-center justify-center gap-2">
-                        {onToggleDisableUser && (
-                          <button
-                            onClick={() => onToggleDisableUser(personnel.id)}
-                            className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
-                              personnel.is_disabled
-                                ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200"
-                                : "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200"
-                            } cursor-pointer`}
-                            title={personnel.is_disabled ? "Restore access profile" : "Deactivate access profile"}
-                          >
-                            {personnel.is_disabled ? "Enable" : "Disable"}
-                          </button>
-                        )}
-
                         {onDeleteUser && (
                           <>
                             {userToConfirmDelete === personnel.id ? (
@@ -430,7 +420,7 @@ export default function UserManagement({
 
               {/* Email */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Institutional Email Handle *</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">email *</label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input 
@@ -446,7 +436,7 @@ export default function UserManagement({
 
               {/* Password */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Access Key Password *</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">password *</label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input 
@@ -455,6 +445,21 @@ export default function UserManagement({
                     placeholder="Provide standard starting key code"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-vignanBlue block font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Phone Number */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Phone Number (Optional)</label>
+                <div className="relative">
+                  <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <input 
+                    type="text" 
+                    placeholder="e.g. +91 9440123445"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-vignanBlue block font-mono"
                   />
                 </div>
@@ -472,7 +477,7 @@ export default function UserManagement({
                   <option value="asset_manager">Asset Manager</option>
                   <option value="maintenance_team">Maintenance Crew</option>
                   <option value="auditor">Auditor (Read-Only)</option>
-                  <option value="super_admin">Super Admin</option>
+                  <option value="super_admin">Admin</option>
                 </select>
               </div>
 

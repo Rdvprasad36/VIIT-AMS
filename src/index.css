@@ -57,3 +57,31 @@ html, body {
   background: #94a3b8;
 }
 
+/* Print Media styling for adhesive thermal labels */
+@media print {
+  /* Hide every page element */
+  body * {
+    visibility: hidden;
+  }
+  /* Only show the tag area */
+  #printable-tag-area, #printable-tag-area * {
+    visibility: visible;
+  }
+  #printable-tag-area {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 380px !important;
+    height: auto !important;
+    background: white !important;
+    border: 2px solid #000 !important;
+    border-radius: 12px !important;
+    padding: 24px !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+}
+
+

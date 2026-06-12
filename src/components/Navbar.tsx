@@ -50,6 +50,7 @@ export default function Navbar({ user, onLogout, activeTab, setActiveTab, onOpen
   const [activeModalTab, setActiveModalTab] = useState<"profile" | "password">("profile");
   const [profileName, setProfileName] = useState("");
   const [profileDept, setProfileDept] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
   const [curPassword, setCurPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [modalError, setModalError] = useState("");
@@ -60,6 +61,7 @@ export default function Navbar({ user, onLogout, activeTab, setActiveTab, onOpen
     if (user && isProfileModalOpen) {
       setProfileName(user.name);
       setProfileDept(user.department);
+      setProfilePhone(user.phone || "");
       setCurPassword("");
       setNewPassword("");
       setModalError("");
@@ -133,7 +135,8 @@ export default function Navbar({ user, onLogout, activeTab, setActiveTab, onOpen
       setModalSuccess("");
       const res = await api.put("/users/profile", {
         name: profileName.trim(),
-        department: profileDept.trim()
+        department: profileDept.trim(),
+        phone: profilePhone.trim()
       });
       setModalSuccess("Dynamic profile updated successfully!");
       if (onUpdateProfile) {
@@ -196,6 +199,7 @@ export default function Navbar({ user, onLogout, activeTab, setActiveTab, onOpen
   const getRoleBadgeLabel = (role?: string) => {
     if (!role) return "Guest";
     if (role === "web_developer") return "Senior Web Developer";
+    if (role === "super_admin") return "Admin";
     return role.split("_").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
   };
 
@@ -549,13 +553,24 @@ export default function Navbar({ user, onLogout, activeTab, setActiveTab, onOpen
                   </div>
 
                   <div className="space-y-1 text-left">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Institutional Department</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block font-sans">Institutional Department</label>
                     <input 
                       type="text" 
                       required
                       placeholder="Enter Department"
                       value={profileDept}
                       onChange={(e) => setProfileDept(e.target.value)}
+                      className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs block text-slate-800 bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-left">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block font-sans">Phone Number (Optional)</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. +91 9999999999"
+                      value={profilePhone}
+                      onChange={(e) => setProfilePhone(e.target.value)}
                       className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs block text-slate-800 bg-white"
                     />
                   </div>

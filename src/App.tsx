@@ -377,7 +377,7 @@ export default function App() {
     await fetchAssets();
   };
 
-  const handleReturnAsset = async (id: number) => {
+  const handleReturnAsset = async (id: number, purpose?: string) => {
     try {
       if (user?.role === "employee") {
         // Optimistic UI update for speed and instant visual feedback
@@ -386,8 +386,8 @@ export default function App() {
             asset.id === id ? { ...asset, status: "return_pending" } : asset
           )
         );
-        const res = await api.post(`/assets/${id}/request-return`);
-        alert("Return request sent");
+        const res = await api.post(`/assets/${id}/request-return`, { purpose });
+        alert("Return request sent successfully. Awaiting coordinator approval.");
         if (res.data?.asset) {
           setAssets((prev) =>
             prev.map((asset) =>
@@ -487,7 +487,8 @@ export default function App() {
       password: data.password_hash, // Sent as access key
       role: data.role,
       department: data.department,
-      employee_type: data.employee_type
+      employee_type: data.employee_type,
+      phone: data.phone,
     });
     await fetchUsers();
   };
@@ -556,7 +557,7 @@ export default function App() {
     { id: "assets", label: "Asset Inventory", icon: <Database className="w-5 h-5" />, visible: true },
     { id: "requests", label: "Allocations Desk", icon: <FileCheck className="w-5 h-5" />, visible: true },
     { id: "maintenance", label: "Repairs Board", icon: <Wrench className="w-5 h-5" />, visible: true },
-    { id: "users", label: "Super Admin Panel", icon: <Users className="w-5 h-5" />, visible: user?.role === "super_admin" || user?.role === "web_developer" },
+    { id: "users", label: "users details", icon: <Users className="w-5 h-5" />, visible: user?.role === "super_admin" || user?.role === "web_developer" },
     { id: "dev_desk", label: "Developer Desk", icon: <Building className="w-5 h-5" />, visible: user?.role === "web_developer" },
   ];
 
@@ -752,7 +753,7 @@ export default function App() {
                       {[
                         {
                           role: "super_admin",
-                          title: "Super Admin",
+                          title: "Admin",
                           desc: "System credential administration, database overrides, and budget configuration indicators.",
                           color: "border-rose-150 bg-rose-50/10 hover:bg-rose-50/30 text-rose-900 shadow-xs",
                           icon: <ShieldAlert className="w-4 h-4 text-rose-600" />
@@ -857,7 +858,7 @@ export default function App() {
                   {/* Native credentials override inputs */}
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Institutional Email Handle</label>
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">email</label>
                       <input 
                         type="email" 
                         required
@@ -870,7 +871,7 @@ export default function App() {
 
                     <div className="space-y-1">
                       <div className="flex justify-between items-center">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Access Key Password</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">password</label>
                       </div>
                       <div className="relative">
                         <input 
