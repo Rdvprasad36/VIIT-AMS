@@ -46,6 +46,8 @@ export interface Asset {
   created_at: string;
   warranty_expiration?: string;
   is_trial?: boolean;
+  allocated_to?: string;
+  allocated_to_id?: number;
 }
 
 export interface Request {
@@ -98,6 +100,17 @@ export interface BudgetConfig {
   cumulativeOutlaysOverride?: number | null;
 }
 
+export interface UtilizationReport {
+  id: number;
+  report_date: string;
+  generated_by_id: number;
+  generated_by_name: string;
+  total_assets: number;
+  allocated_assets: number;
+  available_assets: number;
+  maintenance_assets: number;
+}
+
 export interface DatabaseSchema {
   users: User[];
   assets: Asset[];
@@ -106,6 +119,7 @@ export interface DatabaseSchema {
   audits: SystemAudit[];
   suggestions?: Suggestion[]; // Dynamic feedback support
   budgets?: BudgetConfig;
+  utilization_reports?: UtilizationReport[];
 }
 
 import { initializeApp } from "firebase/app";
@@ -120,6 +134,7 @@ try {
     const app = initializeApp(config);
     firestoreDb = initializeFirestore(app, {
       experimentalAutoDetectLongPolling: true,
+      ignoreUndefinedProperties: true,
     }, config.firestoreDatabaseId);
     console.log("[VIIT AMS] Firestore cloud connection successfully initialized with auto-detect long-polling.");
   } else {
@@ -340,7 +355,7 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
     let changed = false;
 
     // Detect if old pre-set seeded metadata exists, then perform clean sweeps of Firestore
-    const hasOldUsers = dbCache.users.some(u => ["manager@viit.edu.in", "employee@viit.edu.in", "auditor@viit.edu.in", "tech@viit.edu.in", "technoblade@gmail.com"].includes(u.email));
+    const hasOldUsers = dbCache.users.some(u => ["technoblade@gmail.com"].includes(u.email));
     if (hasOldUsers) {
       console.log("[VIIT AMS] Obsolete constant data detected. Deleting old profiles, assets, and request lines inside Firestore to start fresh...");
       
@@ -397,7 +412,8 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
     if (!hasRdv) {
       const salt = bcrypt.genSaltSync(10);
       const passwordRdv_hash = bcrypt.hashSync("020306", salt);
-      const nextId = dbCache.users.length > 0 ? Math.max(...dbCache.users.map(u => u.id)) + 1 : 1;
+      let validIds = dbCache.users.filter(u => typeof u.id === 'number' && !isNaN(u.id)).map(u => u.id);
+      const nextId = validIds.length > 0 ? Math.max(...validIds) + 1 : 1;
       const rdvUser: User = {
         id: nextId,
         name: "Web Support Team Dev",
@@ -563,6 +579,10 @@ async function syncToCloudFirestore(prev: DatabaseSchema, current: DatabaseSchem
   await syncCollection("maintenance_logs", prev.maintenance_logs, current.maintenance_logs);
   await syncCollection("audits", prev.audits, current.audits);
   
+  if (current.utilization_reports && prev.utilization_reports) {
+    await syncCollection("utilization_reports", prev.utilization_reports, current.utilization_reports);
+  }
+  
   if (current.suggestions && prev.suggestions) {
     await syncCollection("suggestions", prev.suggestions, current.suggestions);
   }
@@ -595,6 +615,10 @@ export async function forceSyncAllToFirestore(): Promise<{ success: boolean; use
   await forcePushCollection("requests", current.requests);
   await forcePushCollection("maintenance_logs", current.maintenance_logs);
   await forcePushCollection("audits", current.audits);
+  
+  if (current.utilization_reports) {
+    await forcePushCollection("utilization_reports", current.utilization_reports);
+  }
   
   if (current.suggestions) {
     await forcePushCollection("suggestions", current.suggestions);
@@ -678,7 +702,7 @@ export function logSystemEvent(
 ) {
   const db = getDb();
   const newAudit: SystemAudit = {
-    id: db.audits.length > 0 ? Math.max(...db.audits.map((a) => a.id)) + 1 : 1,
+    id: db.audits.length > 0 ? Math.max(0, ...db.audits.map((a) => a.id || 0)) + 1 : 1,
     user_id: userId,
     user_name: userName,
     action_type: actionType,

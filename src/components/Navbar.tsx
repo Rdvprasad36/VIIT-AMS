@@ -515,12 +515,12 @@ export default function Navbar({ user, onLogout, activeTab, setActiveTab, onOpen
             <div className="p-6">
               {modalError && (
                 <div className="p-3 bg-rose-50 border border-rose-150 text-rose-700 rounded-xl text-xs font-medium mb-4 animate-fade-in text-left">
-                  ⚠️ {modalError}
+                  {modalError}
                 </div>
               )}
               {modalSuccess && (
                 <div className="p-3 bg-emerald-50 border border-emerald-150 text-emerald-800 rounded-xl text-xs font-medium mb-4 animate-fade-in text-left">
-                  ✅ {modalSuccess}
+                  {modalSuccess}
                 </div>
               )}
 

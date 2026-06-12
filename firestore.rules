@@ -41,5 +41,10 @@ service cloud.firestore {
     match /budgets/{configDoc} {
       allow read, write: if true;
     }
+
+    // 9. Utilization Reports - allow unauthenticated server-side middleware access
+    match /utilization_reports/{reportId} {
+      allow read, write: if true;
+    }
   }
 }

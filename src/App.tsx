@@ -174,8 +174,10 @@ export default function App() {
       setIsStatsLoading(true);
       const res = await api.get<DashboardStatsResponse>("/dashboard/stats");
       setStats(res.data);
-    } catch (err) {
-      console.error("Failed to query dashboard overview stats.", err);
+    } catch (err: any) {
+      if (err.response?.status !== 401 && err.response?.status !== 403) {
+        console.error("Failed to query dashboard overview stats.", err);
+      }
     } finally {
       setIsStatsLoading(false);
     }
@@ -186,8 +188,10 @@ export default function App() {
       setIsAssetsLoading(true);
       const res = await api.get<Asset[]>("/assets");
       setAssets(res.data);
-    } catch (err) {
-      console.error("Failed to fetch physical asset directories.", err);
+    } catch (err: any) {
+      if (err.response?.status !== 401 && err.response?.status !== 403) {
+        console.error("Failed to fetch physical asset directories.", err);
+      }
     } finally {
       setIsAssetsLoading(false);
     }
@@ -198,8 +202,10 @@ export default function App() {
       setIsRequestsLoading(true);
       const res = await api.get<RequisitionRequest[]>("/requests");
       setRequests(res.data);
-    } catch (err) {
-      console.error("Failed to fetch requests histories.", err);
+    } catch (err: any) {
+      if (err.response?.status !== 401 && err.response?.status !== 403) {
+        console.error("Failed to fetch requests histories.", err);
+      }
     } finally {
       setIsRequestsLoading(false);
     }
@@ -210,8 +216,10 @@ export default function App() {
       setIsMaintenanceLoading(true);
       const res = await api.get<MaintenanceLog[]>("/maintenance");
       setMaintenanceLogs(res.data);
-    } catch (err) {
-      console.error("Failed to query repair logs.", err);
+    } catch (err: any) {
+      if (err.response?.status !== 401 && err.response?.status !== 403) {
+        console.error("Failed to query repair logs.", err);
+      }
     } finally {
       setIsMaintenanceLoading(false);
     }
@@ -222,8 +230,10 @@ export default function App() {
       setIsUsersLoading(true);
       const res = await api.get<User[]>("/users");
       setUsers(res.data);
-    } catch (err) {
-      console.error("Failed to list active users database.", err);
+    } catch (err: any) {
+      if (err.response?.status !== 401 && err.response?.status !== 403) {
+        console.error("Failed to list active users database.", err);
+      }
     } finally {
       setIsUsersLoading(false);
     }
@@ -243,6 +253,7 @@ export default function App() {
       const res = await api.post<{ token: string; user: LoggedInUser }>("/auth/login", {
         email: loginEmail.trim(),
         password: loginPassword,
+        expectedRole: selectedRoleData?.role,
       });
 
       const { token, user: loggedUser } = res.data;
@@ -355,13 +366,6 @@ export default function App() {
     }
   };
 
-  // Fast select developer shortcut credentials handles during competition
-  const selectQuickProfile = (email: string, pw: string) => {
-    setLoginEmail(email);
-    setLoginPassword(pw);
-    setAuthError("");
-  };
-
   // 4. Operation Handlers cascading onto modules
   const handleCreateAsset = async (data: Partial<Asset>) => {
     await api.post("/assets", data);
@@ -383,7 +387,7 @@ export default function App() {
           )
         );
         const res = await api.post(`/assets/${id}/request-return`);
-        alert("Asset return requested successfully. Awaiting coordinator approval.");
+        alert("Return request sent");
         if (res.data?.asset) {
           setAssets((prev) =>
             prev.map((asset) =>
@@ -509,8 +513,37 @@ export default function App() {
 
   const handleClearAuditLogs = async () => {
     try {
-      await api.post("/audit-logs/clear");
-      alert("Chronological audit ledger logs cleared cleanly.");
+      const resp = await api.post("/audit-logs/clear");
+      const oldAudits = resp.data.oldAudits || [];
+
+      if (oldAudits.length > 0) {
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += "ID,Action,Entity Type,Entity ID,Performed By ID,Performed By Name,Timestamp,Description\n";
+        
+        oldAudits.forEach((audit: any) => {
+           let row = [
+             audit.id,
+             `"${audit.action_type}"`,
+             `"${audit.entity_type}"`,
+             audit.entity_id,
+             audit.performed_by_id,
+             `"${audit.performed_by_name}"`,
+             `"${audit.timestamp}"`,
+             `"${audit.description.replace(/"/g, '""')}"`
+           ].join(",");
+           csvContent += row + "\n";
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `viit_audit_logs_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      alert("Chronological audit ledger logs cleared cleanly. Report downloaded.");
       await fetchStats();
     } catch (err: any) {
       alert("Failed to clear audit ledger: " + (err.response?.data?.error || err.message));
@@ -721,8 +754,6 @@ export default function App() {
                           role: "super_admin",
                           title: "Super Admin",
                           desc: "System credential administration, database overrides, and budget configuration indicators.",
-                          email: "admin@vignaniit.edu.in",
-                          pw: "password123",
                           color: "border-rose-150 bg-rose-50/10 hover:bg-rose-50/30 text-rose-900 shadow-xs",
                           icon: <ShieldAlert className="w-4 h-4 text-rose-600" />
                         },
@@ -730,8 +761,6 @@ export default function App() {
                           role: "asset_manager",
                           title: "Asset Manager",
                           desc: "Asset tag catalogs, claim allocation check, and hardware status updates.",
-                          email: "manager@viit.edu.in",
-                          pw: "password123",
                           color: "border-amber-150 bg-amber-50/10 hover:bg-amber-50/30 text-amber-900 shadow-xs",
                           icon: <Award className="w-4 h-4 text-amber-600" />
                         },
@@ -739,8 +768,6 @@ export default function App() {
                           role: "employee",
                           title: "Employee",
                           desc: "Look up hardware tags, submit claim request forms, report Damaged assets.",
-                          email: "employee@viit.edu.in",
-                          pw: "password123",
                           color: "border-indigo-150 bg-indigo-50/10 hover:bg-indigo-50/30 text-indigo-900 shadow-xs",
                           icon: <Users className="w-4 h-4 text-indigo-600" />
                         },
@@ -748,8 +775,6 @@ export default function App() {
                           role: "auditor",
                           title: "Auditor",
                           desc: "IQAC compliance logs auditing, valuation reports, and system audits verification.",
-                          email: "auditor@viit.edu.in",
-                          pw: "password123",
                           color: "border-sky-150 bg-sky-50/10 hover:bg-sky-50/30 text-sky-900 shadow-xs",
                           icon: <FileCheck className="w-4 h-4 text-sky-600" />
                         },
@@ -757,8 +782,6 @@ export default function App() {
                           role: "maintenance_team",
                           title: "Maintenance Team",
                           desc: "Trouble logs, update servicing status, register maintenance components cost.",
-                          email: "tech@viit.edu.in",
-                          pw: "password123",
                           color: "border-emerald-150 bg-emerald-50/10 hover:bg-emerald-50/30 text-emerald-900 shadow-xs",
                           icon: <Wrench className="w-4 h-4 text-emerald-700" />
                         }
@@ -915,7 +938,7 @@ export default function App() {
               <form onSubmit={handleSendReport} className="p-6 space-y-4">
                 {!user && (
                   <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-xs text-rose-800 font-medium font-sans">
-                    ℹ️ You must be signed in to submit tickets to the system support desk.
+                    You must be signed in to submit tickets to the system support desk.
                   </div>
                 )}
                 {/* Type Selection */}

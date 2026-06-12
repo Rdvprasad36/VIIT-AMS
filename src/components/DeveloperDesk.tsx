@@ -108,10 +108,10 @@ export default function DeveloperDesk({ user }: DeveloperDeskProps) {
         </div>
         <div className="flex gap-2 shrink-0">
           <span className="text-xs bg-rose-50 text-rose-700 font-bold border border-rose-150 px-2.5 py-1 rounded-lg">
-            🐞 {bugs.length} Issues reported
+            {bugs.length} Issues reported
           </span>
           <span className="text-xs bg-indigo-50 text-indigo-700 font-bold border border-indigo-150 px-2.5 py-1 rounded-lg">
-            💡 {ideas.length} Suggestions
+            {ideas.length} Suggestions
           </span>
         </div>
       </div>

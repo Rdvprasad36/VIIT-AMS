@@ -41,6 +41,8 @@ export interface Asset {
   created_at: string;
   warranty_expiration?: string;
   is_trial?: boolean;
+  allocated_to?: string;
+  allocated_to_id?: number;
 }
 
 export interface RequisitionRequest {

@@ -290,8 +290,8 @@ export default function AssetList({
             className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:ring-2 focus:ring-vignanBlue bg-white cursor-pointer"
           >
             <option value="all">All Categories</option>
-            {categoriesList.filter(c => c !== "all").map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
+            {categoriesList.filter(c => c !== "all" && Boolean(c)).map((cat) => (
+              <option key={String(cat)} value={String(cat)}>{cat}</option>
             ))}
           </select>
         </div>
@@ -369,6 +369,14 @@ export default function AssetList({
                     {/* Badged status */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(asset.status)}
+                      {asset.allocated_to && (asset.status === "allocated" || asset.status === "return_pending") && (
+                        <div className="mt-1.5 text-[10px] uppercase font-bold text-slate-500 tracking-wider flex flex-col gap-0.5">
+                          <span className="text-slate-400">Assigned To:</span>
+                          <span className="text-indigo-600 truncate max-w-[120px]" title={asset.allocated_to}>
+                            {asset.allocated_to}
+                          </span>
+                        </div>
+                      )}
                     </td>
 
                     {/* Location */}
@@ -411,13 +419,25 @@ export default function AssetList({
                       <div className="flex justify-center items-center gap-2">
                         {/* Request for Employees */}
                         {user.role === "employee" && asset.status === "available" && (
-                          <button 
-                            onClick={() => setActiveRequestAsset(asset)}
-                            className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-md font-semibold cursor-pointer shadow-xs"
-                          >
-                            <Send className="w-3.5 h-3.5" />
-                            <span>Request</span>
-                          </button>
+                          (() => {
+                            const pendingReq = requests?.find(r => r.asset_id === asset.id && r.user_id === user.id && r.status === "pending" && !r.purpose.includes("[RETURN REQUEST]"));
+                            if (pendingReq) {
+                              return (
+                                <span className="text-vignanBlue font-semibold font-mono text-[10px] bg-blue-50 px-2 py-1 rounded-md border border-blue-200 block text-center">
+                                  Request Sent
+                                </span>
+                              );
+                            }
+                            return (
+                              <button 
+                                onClick={() => setActiveRequestAsset(asset)}
+                                className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-md font-semibold cursor-pointer shadow-xs"
+                              >
+                                <Send className="w-3.5 h-3.5" />
+                                <span>Request</span>
+                              </button>
+                            );
+                          })()
                         )}
 
                         {/* Return / Confirm Return Action */}
@@ -442,7 +462,11 @@ export default function AssetList({
                                   </button>
                                 );
                               }
-                              return null;
+                              return (
+                                <span className="text-amber-500 font-semibold font-mono text-[10px] bg-amber-50 px-2 py-1 rounded-md border border-amber-200 block text-center mt-1">
+                                  Return Sent
+                                </span>
+                              );
                             }
 
                             // If status is "allocated"

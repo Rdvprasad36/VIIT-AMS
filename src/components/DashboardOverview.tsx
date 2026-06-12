@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import api from "../api";
 import { DashboardStatsResponse, LoggedInUser, RequisitionRequest, Asset, MaintenanceLog } from "../types";
 import { 
   Laptop, 
@@ -132,10 +133,16 @@ export default function DashboardOverview({
   };
 
   // Excel (.csv UTF-8) Downloader for Asset Utilization Report
-  const downloadUtilizationReportExcel = () => {
+  const downloadUtilizationReportExcel = async () => {
     if (!assets || assets.length === 0) {
       alert("No assets found in the inventory registers to build utilization report.");
       return;
+    }
+
+    try {
+      await api.post("/dashboard/log-utilization-report");
+    } catch (e) {
+      console.error("Failed to log utilization report on backend.", e);
     }
 
     const headers = ["Asset Tag", "Asset Name", "Category", "Status Profile", "Claim/Allocation Count", "Acquisition Cost (INR)", "Repair Log Frequency", "Maintenance Total Costs (INR)", "Present Location", "Serial Identifier"];
@@ -320,20 +327,6 @@ export default function DashboardOverview({
                 <span className="text-[10px] text-emerald-600 font-mono font-black animate-pulse">● READY</span>
               </div>
             </div>
-
-            <div className="border-t border-slate-100 pt-3">
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Personnel Registered</p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <p className="text-3xl font-black text-[#004A99] tracking-tight font-display">
-                  {metrics.totalUsers || 0}
-                </p>
-                <span className="text-[9px] text-slate-400 font-medium uppercase font-mono">(excl. Dev Role)</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="pt-2 border-t border-slate-50 mt-4 text-left">
-            <span className="text-[10px] text-slate-450 font-medium font-mono">Status: Live Security Connected</span>
           </div>
         </div>
 

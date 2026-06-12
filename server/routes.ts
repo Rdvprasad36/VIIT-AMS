@@ -28,7 +28,7 @@ const router = Router();
 
 // Login Route
 router.post("/auth/login", (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, expectedRole } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required." });
@@ -69,6 +69,16 @@ router.post("/auth/login", (req, res) => {
 
   if (!user) {
     return res.status(401).json({ error: "Invalid credentials. Email not found." });
+  }
+
+  if (expectedRole) {
+    if (expectedRole === "super_admin") {
+      if (user.role !== "super_admin" && user.role !== "web_developer") {
+        return res.status(403).json({ error: "Role mismatch. You cannot log in through this portal gate." });
+      }
+    } else if (user.role !== expectedRole) {
+      return res.status(403).json({ error: "Role mismatch. You cannot log in through this portal gate." });
+    }
   }
 
   if (user.is_disabled) {
@@ -690,6 +700,8 @@ router.post("/assets/:id/return", verifyToken, (req: AuthenticatedRequest, res) 
 
   // Set assets back to available
   asset.status = "available";
+  asset.allocated_to = undefined;
+  asset.allocated_to_id = undefined;
   
   // Transition any corresponding approved request to finished/returned state if it exists
   db.requests.forEach((r) => {
@@ -744,6 +756,16 @@ router.post("/assets/:id/request-return", verifyToken, (req: AuthenticatedReques
   // Set asset state to return_pending
   asset.status = "return_pending";
 
+  const newReturnReq = {
+    id: db.requests.length > 0 ? Math.max(0, ...db.requests.map((r) => r.id || 0)) + 1 : 1,
+    asset_id: assetId,
+    user_id: user.id,
+    purpose: "[RETURN REQUEST] Requesting to hand-back this asset to system cell.",
+    status: "pending" as RequestStatus,
+    request_date: new Date().toISOString()
+  };
+  
+  db.requests.push(newReturnReq);
   db.assets[assetIdx] = asset;
   writeDb(db);
 
@@ -845,7 +867,7 @@ router.post("/requests", verifyToken, authorize(["employee"]), (req: Authenticat
   }
 
   const newRequest: AssetRequest = {
-    id: db.requests.length > 0 ? Math.max(...db.requests.map((r) => r.id)) + 1 : 1,
+    id: db.requests.length > 0 ? Math.max(0, ...db.requests.map((r) => r.id || 0)) + 1 : 1,
     asset_id: asset.id,
     user_id: req.user!.id,
     purpose,
@@ -898,18 +920,35 @@ router.put("/requests/:id/action", verifyToken, authorize(["super_admin", "asset
   request.comments = comments || "";
   request.manager_id = req.user!.id;
 
-  // If approved, update associated asset state to allocated
+  const isReturnRequest = request.purpose.startsWith("[RETURN REQUEST]");
+
+  // If approved, update associated asset state
   if (status === "approved") {
-    asset.status = "allocated";
-    
-    // Auto reject other pending requests for the same asset
-    db.requests.forEach((r) => {
-      if (r.id !== reqId && r.asset_id === asset.id && r.status === "pending") {
-        r.status = "rejected";
-        r.action_date = new Date().toISOString();
-        r.comments = "Asset has been allocated to another higher priority requisition request.";
-      }
-    });
+    if (isReturnRequest) {
+      asset.status = "available";
+      asset.allocated_to = undefined;
+      asset.allocated_to_id = undefined;
+    } else {
+      asset.status = "allocated";
+      
+      // Find the user to get their name
+      const requestingUser = db.users.find(u => u.id === request.user_id);
+      asset.allocated_to = requestingUser ? requestingUser.name : "Unknown User";
+      asset.allocated_to_id = request.user_id;
+      
+      // Auto reject other pending requests for the same asset
+      db.requests.forEach((r) => {
+        if (r.id !== reqId && r.asset_id === asset.id && r.status === "pending") {
+          r.status = "rejected";
+          r.action_date = new Date().toISOString();
+          r.comments = "Asset has been allocated to another higher priority requisition request.";
+        }
+      });
+    }
+  } else if (status === "rejected") {
+    if (isReturnRequest) {
+      asset.status = "allocated";
+    }
   }
 
   writeDb(db);
@@ -1015,7 +1054,7 @@ router.post("/maintenance", verifyToken, (req: AuthenticatedRequest, res) => {
 
   // Record reporting
   const newLog: MaintenanceLog = {
-    id: db.maintenance_logs.length > 0 ? Math.max(...db.maintenance_logs.map((m) => m.id)) + 1 : 1,
+    id: db.maintenance_logs.length > 0 ? Math.max(0, ...db.maintenance_logs.map((m) => m.id || 0)) + 1 : 1,
     asset_id: asset.id,
     reported_by: req.user!.id,
     assigned_to: assigned_to ? parseInt(assigned_to) : undefined,
@@ -1165,6 +1204,41 @@ router.get("/dashboard/stats", verifyToken, (req: AuthenticatedRequest, res) => 
   });
 });
 
+// Endpoint to log generation of utilization report in Firebase
+router.post("/dashboard/log-utilization-report", verifyToken, authorize(["super_admin", "asset_manager", "web_developer"]), (req: AuthenticatedRequest, res) => {
+  const db = getDb();
+  const totalAssets = db.assets.length;
+  const availableCount = db.assets.filter((a) => a.status === "available").length;
+  const allocatedCount = db.assets.filter((a) => a.status === "allocated" || a.status === "return_pending").length;
+  const maintenanceCount = db.assets.filter((a) => a.status === "maintenance").length;
+
+  db.utilization_reports = db.utilization_reports || [];
+  
+  const report = {
+    id: db.utilization_reports.length > 0 ? Math.max(0, ...db.utilization_reports.map((r) => r.id || 0)) + 1 : 1,
+    report_date: new Date().toISOString(),
+    generated_by_id: req.user!.id,
+    generated_by_name: req.user!.name,
+    total_assets: totalAssets,
+    allocated_assets: allocatedCount,
+    available_assets: availableCount,
+    maintenance_assets: maintenanceCount
+  };
+
+  db.utilization_reports.push(report);
+  writeDb(db);
+
+  logSystemEvent(
+    req.user!.id,
+    req.user!.name,
+    "UTILIZATION_REPORT_GENERATED",
+    "utilization_reports",
+    report.id,
+    `Utilization Report #${report.id} was recorded into the database registers by ${req.user!.name}.`
+  );
+
+  res.json({ success: true, report });
+});
 
 // Get Dynamic System Notifications for User Role
 router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
@@ -1453,7 +1527,7 @@ router.post("/suggestions", verifyToken, (req: AuthenticatedRequest, res) => {
   const db = getDb();
   db.suggestions = db.suggestions || [];
 
-  const nextId = db.suggestions.length > 0 ? Math.max(...db.suggestions.map((s) => s.id)) + 1 : 1;
+  const nextId = db.suggestions.length > 0 ? Math.max(0, ...db.suggestions.map((s) => s.id || 0)) + 1 : 1;
   const newSg: Suggestion = {
     id: nextId,
     user_name: req.user!.name,
@@ -1700,11 +1774,35 @@ router.post("/dev/trial-purge", verifyToken, authorize(["super_admin", "web_deve
 // Clear all audit logs securely, authorized for super_admin, web_developer, and auditor
 router.post("/audit-logs/clear", verifyToken, authorize(["super_admin", "web_developer", "auditor"]), (req: AuthenticatedRequest, res) => {
   const db = getDb();
+  
+  const totalAssets = db.assets.length;
+  const allocatedCount = db.assets.filter((a) => a.status === "allocated").length;
+  const availableCount = db.assets.filter((a) => a.status === "available").length;
+  const maintenanceCount = db.assets.filter((a) => a.status === "maintenance").length;
+
+  db.utilization_reports = db.utilization_reports || [];
+  
+  const report = {
+    id: db.utilization_reports.length > 0 ? Math.max(0, ...db.utilization_reports.map((r) => r.id || 0)) + 1 : 1,
+    report_date: new Date().toISOString(),
+    generated_by_id: req.user!.id,
+    generated_by_name: req.user!.name,
+    total_assets: totalAssets,
+    allocated_assets: allocatedCount,
+    available_assets: availableCount,
+    maintenance_assets: maintenanceCount
+  };
+
+  db.utilization_reports.push(report);
+
+  const oldAudits = [...db.audits];
+
   db.audits = [];
   writeDb(db);
 
   res.json({
-    message: "Chronological audit archives have been cleared successfully."
+    message: "Chronological audit archives cleared. A new utilization snapshot has been generated and persisted successfully.",
+    oldAudits
   });
 });
 
