@@ -340,7 +340,7 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
     let changed = false;
 
     // Detect if old pre-set seeded metadata exists, then perform clean sweeps of Firestore
-    const hasOldUsers = dbCache.users.some(u => ["technoblade@gmail.com"].includes(u.email));
+    const hasOldUsers = dbCache.users.some(u => ["manager@viit.edu.in", "employee@viit.edu.in", "auditor@viit.edu.in", "tech@viit.edu.in", "technoblade@gmail.com"].includes(u.email));
     if (hasOldUsers) {
       console.log("[VIIT AMS] Obsolete constant data detected. Deleting old profiles, assets, and request lines inside Firestore to start fresh...");
       
@@ -465,42 +465,6 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
         email: "testm@vignaniit.edu.in",
         role: "maintenance_team",
         department: "Administration Office",
-        employee_type: "other",
-        password_plain: "password123"
-      },
-      {
-        id: 12,
-        name: "Asset Manager",
-        email: "manager@viit.edu.in",
-        role: "asset_manager",
-        department: "System Cell",
-        employee_type: "other",
-        password_plain: "password123"
-      },
-      {
-        id: 13,
-        name: "Employee",
-        email: "employee@viit.edu.in",
-        role: "employee",
-        department: "System Cell",
-        employee_type: "other",
-        password_plain: "password123"
-      },
-      {
-        id: 14,
-        name: "Auditor",
-        email: "auditor@viit.edu.in",
-        role: "auditor",
-        department: "System Cell",
-        employee_type: "other",
-        password_plain: "password123"
-      },
-      {
-        id: 15,
-        name: "Maintenance Team",
-        email: "tech@viit.edu.in",
-        role: "maintenance_team",
-        department: "System Cell",
         employee_type: "other",
         password_plain: "password123"
       }
