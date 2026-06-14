@@ -91,7 +91,7 @@ export default function MaintenanceBoard({
     setActiveManageLog(log);
     setTicketStatus(log.repair_status);
     setTicketCost(log.cost > 0 ? String(log.cost) : "");
-    setTicketComments("");
+    setTicketComments(log.issue_description || "");
   };
 
   const handleUpdateSubmit = async (e: React.FormEvent) => {
@@ -220,14 +220,15 @@ export default function MaintenanceBoard({
                     {/* Operations */}
                     <td className="px-6 py-4 whitespace-nowrap text-center text-xs">
                       <div className="flex justify-center items-center">
-                        {log.repair_status !== "resolved" && log.repair_status !== "unrepairable" && 
+                        {((log.repair_status !== "resolved" && log.repair_status !== "unrepairable") || 
+                          ["super_admin", "asset_manager", "web_developer"].includes(user.role)) && 
                         (user.role === "maintenance_team" || user.role === "super_admin" || user.role === "asset_manager" || user.role === "web_developer") ? (
                           <button 
                             onClick={() => handleOpenManager(log)}
                             className="flex items-center gap-1 bg-amber-700 hover:bg-amber-800 text-white px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer shadow-xs"
                           >
                             <Hammer className="w-3.5 h-3.5" />
-                            <span>Manage Ticket</span>
+                            <span>{log.repair_status === "resolved" || log.repair_status === "unrepairable" ? "Edit Details" : "Manage Ticket"}</span>
                           </button>
                         ) : (
                           <span className="text-[11px] text-slate-400 italic font-medium">Ticket closed</span>
@@ -303,10 +304,10 @@ export default function MaintenanceBoard({
 
               {/* Technician comments */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Resolution Dispatch Report Note (Public)</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Issue Description / Resolution Note</label>
                 <textarea 
-                  rows={2}
-                  placeholder="Summarize diagnostics. E.g., Purged motherboard capacitor lines, swapped optical lens array, asset is functioning pristine..."
+                  rows={3}
+                  placeholder="E.g., Screen display flickering, chemistry spectrophotometer, or enter the resolution logs..."
                   value={ticketComments}
                   onChange={(e) => setTicketComments(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-600 block leading-normal"

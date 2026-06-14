@@ -377,11 +377,6 @@ export default function AssetList({
                         <p className="font-semibold text-slate-800 leading-tight">{asset.name}</p>
                         <p className="text-xs text-slate-400 font-mono mt-1">
                           S/N: {asset.serial_number || "N/A"}
-                          {asset.warranty_expiration && (
-                            <span className="ml-2 pl-2 border-l border-slate-200 text-indigo-600 font-semibold bg-indigo-50/50 px-1.5 py-0.5 rounded">
-                              Warranty Exp: {new Date(asset.warranty_expiration).toLocaleDateString()}
-                            </span>
-                          )}
                         </p>
                       </div>
                     </td>
@@ -470,7 +465,7 @@ export default function AssetList({
                           (() => {
                             if (asset.status === "return_pending") {
                               // Only admins and asset managers can confirm pending returns
-                              const isAuthorizedToConfirm = ["super_admin", "asset_manager", "web_developer"].includes(user.role);
+                              const isAuthorizedToConfirm = false;
                               if (isAuthorizedToConfirm) {
                                 return (
                                   <button
@@ -489,7 +484,7 @@ export default function AssetList({
                               }
                               return (
                                 <span className="text-amber-500 font-semibold font-mono text-[10px] bg-amber-50 px-2 py-1 rounded-md border border-amber-200 block text-center mt-1">
-                                  Return Sent
+                                  Awaiting Desk Approval
                                 </span>
                               );
                             }
@@ -894,9 +889,9 @@ export default function AssetList({
               <div>
                 <h3 className="text-lg font-bold font-display flex items-center gap-2">
                   <Wrench className="w-5 h-5" />
-                  Decom & Report Asset Failure
+                  Report Asset Failure
                 </h3>
-                <p className="text-xs text-amber-100">Initiate repair ticket flow on Estate Desk</p>
+                <p className="text-xs text-amber-100">Report an issue with this asset</p>
               </div>
               <button onClick={() => setActiveMaintenanceAsset(null)} className="text-white hover:text-amber-200 p-1">
                 <X className="w-5 h-5" />
@@ -911,11 +906,11 @@ export default function AssetList({
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Description of Technical Failure *</label>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Issue Description *</label>
                 <textarea 
                   required
                   rows={3}
-                  placeholder="E.g., Screen display flickering, chemistry spectrophotometer sensor error code 0x4, laptop keyboard water damage, projector lens requires dust purge..."
+                  placeholder="E.g., Screen flickering, not turning on, physical damage, keyboard issue, etc."
                   value={maintenanceIssue}
                   onChange={(e) => setMaintenanceIssue(e.target.value)}
                   className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-600 block leading-relaxed"

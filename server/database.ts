@@ -179,6 +179,12 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 500): Pro
 
 // Global state cache serving fast reads
 let dbCache: DatabaseSchema | null = null;
+export let cacheTimestamp: number = 0;
+let pendingWrites: Promise<any>[] = [];
+
+export function getPendingWrites() {
+  return Promise.all(pendingWrites);
+}
 
 // Synchronous local file read backup
 function getLocalDbBackup(): DatabaseSchema {
@@ -546,6 +552,7 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
     }
 
     console.log(`[VIIT AMS] Cloud cache ready. Loaded ${dbCache.users.length} users, ${dbCache.assets.length} assets, ${dbCache.requests.length} claims.`);
+    cacheTimestamp = Date.now();
     return dbCache;
   } catch (err) {
     console.error("[VIIT AMS] Error downloading from Cloud Firestore. Reverting to persistent backup:", err);
@@ -560,10 +567,18 @@ export function getDb(): DatabaseSchema {
     console.log("[VIIT AMS] Warning: DB Cache accessed before preheating finished. Sourcing local fallback...");
     dbCache = getLocalDbBackup();
   }
+  
+  // Background cache refresh every 15 seconds so we are never more than 15s behind but don't block reads
+  if (firestoreDb && Date.now() - cacheTimestamp > 15000) {
+    preloadDbFromFirestore().catch((err) => {
+      console.warn("[VIIT AMS] Background preload automatic cache refresh failed:", err.message || err);
+    });
+  }
+  
   return dbCache;
 }
 
-// Write Database - updates cache, updates local backup, and kicks off async cloud sync
+// Write Database - updates cache, updates local backup, and kicks off async cloud sync (registered in pendingWrites)
 export function writeDb(data: DatabaseSchema): void {
   const previous = dbCache || getLocalDbBackup();
   dbCache = data;
@@ -572,8 +587,15 @@ export function writeDb(data: DatabaseSchema): void {
   if (!firestoreDb) return;
 
   // Sync to Firestore in the background
-  syncToCloudFirestore(previous, data).catch((err) => {
+  const syncPromise = syncToCloudFirestore(previous, data).then(() => {
+    cacheTimestamp = Date.now(); // update cacheTimestamp on successful save
+  }).catch((err) => {
     console.error("[VIIT AMS] Error syncing database modifications to Firestore: ", err);
+  });
+  
+  pendingWrites.push(syncPromise);
+  syncPromise.finally(() => {
+    pendingWrites = pendingWrites.filter(p => p !== syncPromise);
   });
 }
 
@@ -731,6 +753,33 @@ export function logSystemEvent(
   details: string
 ) {
   const db = getDb();
+
+  // Exclude logging for anything initiated by a web_developer or involving a web_developer
+  if (userId) {
+    const actor = db.users.find((u) => u.id === userId);
+    if (actor && actor.role === "web_developer") {
+      return; // Skip logging
+    }
+  }
+
+  if (entityTable === "users" && entityId) {
+    const targetUser = db.users.find((u) => u.id === entityId);
+    if (targetUser && targetUser.role === "web_developer") {
+      return; // Skip logging
+    }
+  }
+
+  const normalizedDetails = (details || "").toLowerCase();
+  const normalizedAction = (actionType || "").toLowerCase();
+  if (
+    normalizedDetails.includes("web_developer") || 
+    normalizedDetails.includes("web developer") || 
+    normalizedAction.includes("web_developer") ||
+    normalizedAction.includes("web developer")
+  ) {
+    return; // Skip logging
+  }
+
   const newAudit: SystemAudit = {
     id: db.audits.length > 0 ? Math.max(0, ...db.audits.map((a) => a.id || 0)) + 1 : 1,
     user_id: userId,

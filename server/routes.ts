@@ -16,11 +16,38 @@ import {
   RepairStatus,
   Suggestion,
   isFirestoreConnected,
-  forceSyncAllToFirestore
+  forceSyncAllToFirestore,
+  preloadDbFromFirestore,
+  getPendingWrites
 } from "./database";
 import { verifyToken, authorize, AuthenticatedRequest, JWT_SECRET } from "./auth";
 
 const router = Router();
+
+// Middleware to ensure up-to-date reads/writes and prevent container timeout data loss
+router.use(async (req, res, next) => {
+  const isMutation = ["POST", "PUT", "DELETE"].includes(req.method);
+  
+  if (isMutation) {
+    console.log(`[VIIT AMS] Mutation request (${req.method} ${req.path}) detected. Awaiting preload from Cloud Firestore to ensure database synchronization...`);
+    try {
+      await preloadDbFromFirestore();
+    } catch (err: any) {
+      console.warn(`[VIIT AMS] Dynamic preload failed before mutation (falling back to cached copy):`, err.message || err);
+    }
+  }
+
+  // Intercept res.end to wait for all asynchronous Firestore writes to complete before finishing the HTTP response
+  const originalEnd = res.end;
+  res.end = function(this: any, chunk?: any, encoding?: any, cb?: any) {
+    getPendingWrites().finally(() => {
+      originalEnd.call(this, chunk, encoding, cb);
+    });
+    return this;
+  } as any;
+
+  next();
+});
 
 // ==========================================
 // 1. AUTHENTICATION ENDPOINTS
@@ -1169,6 +1196,9 @@ router.put("/maintenance/:id", verifyToken, authorize(["super_admin", "asset_man
   const previousStatus = log.repair_status;
   log.repair_status = repair_status as RepairStatus;
   log.cost = cost !== undefined ? parseFloat(cost) : log.cost;
+  if (comments !== undefined) {
+    log.issue_description = comments;
+  }
   log.updated_at = new Date().toISOString();
 
   // Handle asset inventory updates based on resolution outcomes
@@ -1370,11 +1400,13 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
         const asset = db.assets.find((a) => a.id === m.asset_id);
         const name = asset ? asset.name : "Unknown Asset";
         const tag = asset ? asset.asset_tag : "N/A";
+        const reporter = db.users.find((u) => u.id === m.reported_by);
+        const reporterText = reporter ? (reporter.id === user.id ? "You" : reporter.name) : "System";
         addNotification(
           `maint-unresolved-${m.id}`,
           "maintenance_all",
           "Unresolved Maintenance Alert",
-          `Issue "${m.issue_description}" reported for ${name} (#${tag}) at Room ${asset ? asset.location : "N/A"}.`,
+          `Issue "${m.issue_description}" reported for ${name} (#${tag}) at Room ${asset ? asset.location : "N/A"}. Reported by: ${reporterText}`,
           "warning",
           m.created_at
         );

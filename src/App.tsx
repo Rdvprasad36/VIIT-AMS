@@ -518,30 +518,33 @@ export default function App() {
       const oldAudits = resp.data.oldAudits || [];
 
       if (oldAudits.length > 0) {
-        let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "ID,Action,Entity Type,Entity ID,Performed By ID,Performed By Name,Timestamp,Description\n";
-        
-        oldAudits.forEach((audit: any) => {
-           let row = [
-             audit.id,
-             `"${audit.action_type}"`,
-             `"${audit.entity_type}"`,
-             audit.entity_id,
-             audit.performed_by_id,
-             `"${audit.performed_by_name}"`,
-             `"${audit.timestamp}"`,
-             `"${audit.description.replace(/"/g, '""')}"`
-           ].join(",");
-           csvContent += row + "\n";
+        const headers = ["Audit ID", "Timestamp", "Action Type", "Entity Table", "Entity ID", "Operator Name", "Detailed Log Description"];
+        const rows = oldAudits.map((audit: any) => {
+          const escape = (val: any) => {
+            const text = String(val ?? "").replace(/"/g, '""');
+            return `"${text}"`;
+          };
+          return [
+            escape(audit.id),
+            escape(audit.performed_at || audit.timestamp || new Date().toISOString()),
+            escape(audit.action_type),
+            escape(audit.entity_table || audit.entity_type || ""),
+            escape(audit.entity_id),
+            escape(audit.user_name || audit.performed_by_name || "System"),
+            escape(audit.details || audit.description || "")
+          ].join(",");
         });
 
-        const encodedUri = encodeURI(csvContent);
+        const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
+        link.href = url;
         link.setAttribute("download", `viit_audit_logs_${new Date().toISOString().split('T')[0]}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
       }
 
       alert("Chronological audit ledger logs cleared cleanly. Report downloaded.");
