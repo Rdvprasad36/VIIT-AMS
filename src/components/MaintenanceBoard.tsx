@@ -1,3 +1,4 @@
+import toast from "react-hot-toast";
 import React, { useState } from "react";
 import { MaintenanceLog, LoggedInUser, RepairStatus } from "../types";
 import { 
@@ -104,7 +105,7 @@ export default function MaintenanceBoard({
       await onUpdateMaintenance(activeManageLog.id, ticketStatus, costParsed, ticketComments.trim());
       setActiveManageLog(null);
     } catch (err) {
-      alert("Failed to record maintenance resolution.");
+      toast.error("Failed to record maintenance resolution.");
     } finally {
       setIsUpdatingTicket(false);
     }

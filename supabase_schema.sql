@@ -23,7 +23,8 @@ BEGIN
             'available', 
             'allocated', 
             'maintenance', 
-            'disposed'
+            'disposed',
+            'return_pending'
         );
     END IF;
 

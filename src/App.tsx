@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import api from "./api";
+import toast, { Toaster } from "react-hot-toast";
 import { 
   LoggedInUser, 
   Asset, 
@@ -102,7 +103,7 @@ export default function App() {
   const handleSendReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      alert("Please login to submit ticket.");
+      toast.error("Please login to submit ticket.");
       return;
     }
     if (!reportMessage.trim()) return;
@@ -120,7 +121,7 @@ export default function App() {
         setIsReportOpen(false);
       }, 2200);
     } catch (err) {
-      alert("Failed to deliver your suggestion to the website team. Please try again.");
+      toast.error("Failed to deliver your suggestion to the website team. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -492,7 +493,7 @@ export default function App() {
           )
         );
         const res = await api.post(`/assets/${id}/request-return`, { purpose });
-        alert("Return request sent successfully. Awaiting coordinator approval.");
+        toast.success("Return request sent successfully. Awaiting coordinator approval.");
         if (res.data?.asset) {
           setAssets((prev) =>
             prev.map((asset) =>
@@ -515,7 +516,7 @@ export default function App() {
           )
         );
         const res = await api.post(`/assets/${id}/return`);
-        alert("Asset return confirmed and asset registered as available in inventory.");
+        toast.success("Asset return confirmed and asset registered as available in inventory.");
         if (res.data?.asset) {
           setAssets((prev) =>
             prev.map((asset) =>
@@ -528,7 +529,7 @@ export default function App() {
     } catch (err: any) {
       // Revert/refresh on error
       await Promise.all([fetchAssets(), fetchRequests(), fetchStats()]);
-      alert("Return failed: " + (err.response?.data?.error || err.message));
+      toast.error("Return failed: " + (err.response?.data?.error || err.message));
     }
   };
 
@@ -537,7 +538,7 @@ export default function App() {
       await api.delete(`/requests/${id}`);
       await fetchRequests();
     } catch (err: any) {
-      alert("Delete request failed: " + (err.response?.data?.error || err.message));
+      toast.error("Delete request failed: " + (err.response?.data?.error || err.message));
     }
   };
 
@@ -546,17 +547,20 @@ export default function App() {
       await api.post("/requests/clear-all");
       await fetchRequests();
     } catch (err: any) {
-      alert("Clear all requests failed: " + (err.response?.data?.error || err.message));
+      toast.error("Clear all requests failed: " + (err.response?.data?.error || err.message));
     }
   };
 
   const handleDeleteAsset = async (id: number) => {
     try {
-      await api.delete(`/assets/${id}`);
-      alert("Asset deleted successfully.");
+      const token = localStorage.getItem("viit_ams_token");
+      await api.delete(`/assets/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success("Asset deleted successfully.");
       await fetchAssets();
     } catch (err: any) {
-      alert("Asset deletion failed: " + (err.response?.data?.error || err.message));
+      toast.error("Asset deletion failed: " + (err.response?.data?.error || err.message));
     }
   };
 
@@ -573,10 +577,10 @@ export default function App() {
   const handleReportMaintenance = async (assetId: number, issue: string, assignedTo?: number) => {
     try {
       await api.post("/maintenance", { asset_id: assetId, issue_description: issue, assigned_to: assignedTo });
-      alert("Fault report ticket dispatched successfully.");
+      toast.success("Fault report ticket dispatched successfully.");
       await fetchAssets();
     } catch (err: any) {
-      alert("Failed to dispatch repair ticket: " + (err.response?.data?.error || err.message));
+      toast.error("Failed to dispatch repair ticket: " + (err.response?.data?.error || err.message));
     }
   };
 
@@ -600,11 +604,14 @@ export default function App() {
 
   const handleDeleteUser = async (id: number) => {
     try {
-      await api.delete(`/users/${id}`);
-      alert("User credentials revoked successfully.");
+      const token = localStorage.getItem("viit_ams_token");
+      await api.delete(`/users/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success("User credentials revoked successfully.");
       await fetchUsers();
     } catch (err: any) {
-      alert("Revoke failed: " + (err.response?.data?.error || err.message));
+      toast.error("Revoke failed: " + (err.response?.data?.error || err.message));
     }
   };
 
@@ -613,7 +620,7 @@ export default function App() {
       await api.put(`/users/${id}/toggle-disabled`);
       await fetchUsers();
     } catch (err: any) {
-      alert("Toggle status failed: " + (err.response?.data?.error || err.message));
+      toast.error("Toggle status failed: " + (err.response?.data?.error || err.message));
     }
   };
 
@@ -652,10 +659,10 @@ export default function App() {
         URL.revokeObjectURL(url);
       }
 
-      alert("Chronological audit ledger logs cleared cleanly. Report downloaded.");
+      toast.success("Chronological audit ledger logs cleared cleanly. Report downloaded.");
       await fetchStats();
     } catch (err: any) {
-      alert("Failed to clear audit ledger: " + (err.response?.data?.error || err.message));
+      toast.error("Failed to clear audit ledger: " + (err.response?.data?.error || err.message));
     }
   };
 
@@ -670,7 +677,9 @@ export default function App() {
   ];
 
   return (
-    <div className="flex flex-col min-h-screen font-sans bg-slate-50/50">
+    <>
+      <Toaster position="top-center" toastOptions={{ duration: 4000, style: { background: '#333', color: '#fff' } }} />
+      <div className="flex flex-col min-h-screen font-sans bg-slate-50/50">
       {/* Dynamic Header navbar */}
       <Navbar 
         user={user} 
@@ -1116,5 +1125,6 @@ export default function App() {
         </div>
       )}
     </div>
+    </>
   );
 }

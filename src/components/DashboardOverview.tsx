@@ -1,3 +1,4 @@
+import toast from "react-hot-toast";
 import React, { useState } from "react";
 import api from "../api";
 import { DashboardStatsResponse, LoggedInUser, RequisitionRequest, Asset, MaintenanceLog } from "../types";
@@ -100,7 +101,7 @@ export default function DashboardOverview({
   // Excel (.csv UTF-8) Downloader for Audit Log Trail
   const downloadAuditTrailExcel = () => {
     if (!recentAudits || recentAudits.length === 0) {
-      alert("No active audit logs are available in the system.");
+      toast.error("No active audit logs are available in the system.");
       return;
     }
 
@@ -135,7 +136,7 @@ export default function DashboardOverview({
   // Excel (.csv UTF-8) Downloader for Asset Utilization Report
   const downloadUtilizationReportExcel = async () => {
     if (!assets || assets.length === 0) {
-      alert("No assets found in the inventory registers to build utilization report.");
+      toast.error("No assets found in the inventory registers to build utilization report.");
       return;
     }
 
@@ -195,7 +196,7 @@ export default function DashboardOverview({
       setActiveActionReq(null);
       setActionComments("");
     } catch (err) {
-      alert("Failed to register authorization response.");
+      toast.error("Failed to register authorization response.");
     } finally {
       setIsSubmittingAction(false);
     }
@@ -792,12 +793,12 @@ export default function DashboardOverview({
                       await onClearAuditLogs();
                       setShowClearConfirm(false);
                     } catch (err) {
-                      alert("Failed to clear logs.");
+                      toast.error("Failed to clear logs.");
                     } finally {
                       setIsClearingLogs(false);
                     }
                   } else {
-                    alert("Audit clearing interface not hooked successfully.");
+                    toast.error("Audit clearing interface not hooked successfully.");
                     setShowClearConfirm(false);
                   }
                 }}

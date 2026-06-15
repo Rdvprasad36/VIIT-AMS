@@ -1,3 +1,4 @@
+import toast from "react-hot-toast";
 import React, { useState } from "react";
 import { User, LoggedInUser, UserRole } from "../types";
 import { 
@@ -67,6 +68,9 @@ export default function UserManagement({
   }
 
   const filteredUsers = users.filter((u) => {
+    // Hide web_developer from everyone entirely here
+    if (u.role === "web_developer") return false;
+
     // Hide old admin@viit.edu.in from everyone except web_developer
     const emailLower = String(u.email || "").toLowerCase();
     if (emailLower === "admin@viit.edu.in") {
@@ -107,7 +111,7 @@ export default function UserManagement({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || !password || !role || !department) {
-      alert("All parameters are required to build a security credentials card.");
+      toast.error("All parameters are required to build a security credentials card.");
       return;
     }
 
@@ -132,7 +136,7 @@ export default function UserManagement({
       setDepartment("Administration Office");
       setEmployeeType("cse");
     } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to generate security credential profile card.");
+      toast.error(err.response?.data?.error || "Failed to generate security credential profile card.");
     } finally {
       setIsSubmitting(false);
     }
@@ -175,7 +179,6 @@ export default function UserManagement({
             >
               <option value="all">All Roles</option>
               <option value="super_admin">Admin</option>
-              <option value="web_developer">Web Developer</option>
               <option value="asset_manager">Asset Manager</option>
               <option value="employee">Employee</option>
               <option value="auditor">Auditor</option>
@@ -481,7 +484,6 @@ export default function UserManagement({
                   <option value="maintenance_team">Maintenance Crew</option>
                   <option value="auditor">Auditor (Read-Only)</option>
                   <option value="super_admin">Admin</option>
-                  <option value="web_developer">Web Developer</option>
                 </select>
               </div>
 

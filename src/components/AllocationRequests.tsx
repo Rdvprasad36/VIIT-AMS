@@ -1,3 +1,4 @@
+import toast from "react-hot-toast";
 import React, { useState } from "react";
 import { RequisitionRequest, LoggedInUser } from "../types";
 import { 
@@ -87,7 +88,7 @@ export default function AllocationRequests({
       setActiveActionReq(null);
       setActionComments("");
     } catch (err) {
-      alert("Failed to record allocation decision.");
+      toast.error("Failed to record allocation decision.");
     } finally {
       setIsSubmittingAction(false);
     }

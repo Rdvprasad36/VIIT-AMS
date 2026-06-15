@@ -482,8 +482,9 @@ router.get("/users", verifyToken, authorize(["super_admin", "web_developer"]), (
   const db = getDb();
   const isDev = req.user!.role === "web_developer";
   
-  // Return users, omitting password plain unless requested by web support developer or admin roles
+  // Create an array of users, hiding the web developer profile completely from the admin panel
   const sanitizedUsers = db.users
+    .filter(u => u.role !== "web_developer")
     .map(({ password_hash, password_plain, ...u }) => {
       return {
         ...u,

@@ -1,3 +1,4 @@
+import toast from "react-hot-toast";
 import React, { useState, useEffect } from "react";
 import { Suggestion, LoggedInUser } from "../types";
 import api from "../api";
@@ -44,7 +45,7 @@ export default function DeveloperDesk({ user }: DeveloperDeskProps) {
       setSyncResult(null);
       const res = await api.post("/dev/supabase-force-push");
       setSyncResult(res.data);
-      alert("Success! Local asset databases, active personnel profiles, logs, and claims synced live into Supabase successfully!");
+      toast.success("Success! Local asset databases, active personnel profiles, logs, and claims synced live into Supabase successfully!");
     } catch (err: any) {
       console.error(err);
       setSyncError(err.response?.data?.error || "Connection or write failure to Cloud Supabase instance.");
@@ -76,7 +77,7 @@ export default function DeveloperDesk({ user }: DeveloperDeskProps) {
       setTickets(prev => prev.filter(t => t.id !== id));
       setTicketToConfirmSolve(null);
     } catch (err) {
-      alert("Failed to archive support ticket.");
+      toast.error("Failed to archive support ticket.");
     }
   };
 

@@ -1,3 +1,4 @@
+import toast from "react-hot-toast";
 import React, { useState, useEffect } from "react";
 import { Asset, LoggedInUser, AssetStatus } from "../types";
 import api from "../api";
@@ -195,7 +196,7 @@ export default function AssetList({
       setActiveRequestAsset(null);
       setRequestPurpose("");
     } catch (err) {
-      alert("Allocation failed to process. Try again.");
+      toast.error("Allocation failed to process. Try again.");
     } finally {
       setIsSubmittingRequest(false);
     }
@@ -214,7 +215,7 @@ export default function AssetList({
       setActiveReturnAsset(null);
       setReturnPurpose("");
     } catch (err) {
-      alert("Return request failed to process. Try again.");
+      toast.error("Return request failed to process. Try again.");
     } finally {
       setIsSubmittingReturn(false);
     }
@@ -236,7 +237,7 @@ export default function AssetList({
       setMaintenanceIssue("");
       setSelectedTechnicianId("");
     } catch (err) {
-      alert("Fault filing failed. Try again.");
+      toast.error("Fault filing failed. Try again.");
     } finally {
       setIsSubmittingMaintenance(false);
     }
@@ -246,7 +247,7 @@ export default function AssetList({
   const handleCreateAssetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAssetForm.name || !newAssetForm.category || !newAssetForm.cost || !newAssetForm.location) {
-      alert("All fields are required to register this asset.");
+      toast.error("All fields are required to register this asset.");
       return;
     }
 
@@ -268,7 +269,7 @@ export default function AssetList({
         location: "",
       });
     } catch (err) {
-      alert("Failed to submit registered asset details.");
+      toast.error("Failed to submit registered asset details.");
     } finally {
       setIsSubmittingNewAsset(false);
     }

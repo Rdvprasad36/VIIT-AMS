@@ -156,13 +156,16 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 500): Pro
   while (true) {
     try {
       const result = await fn();
+      if (result && typeof result === "object" && "error" in result && (result as any).error) {
+        throw (result as any).error;
+      }
       return result;
     } catch (err: any) {
       attempt++;
       if (attempt >= retries) {
         throw err;
       }
-      console.warn(`[VIIT AMS] Connection transient warning. Retrying... (attempt ${attempt}/${retries})`);
+      console.warn(`[VIIT AMS] Connection transient warning. Retrying... (attempt ${attempt}/${retries}):`, err.message || err);
       await new Promise((resolve) => setTimeout(resolve, delay * Math.pow(2, attempt)));
     }
   }
@@ -239,7 +242,7 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
     console.log("[VIIT AMS] Preheating: fetching users...");
     let usersData: any[] = [];
     try {
-      const res = await withRetry(() => supabaseClient!.from("users").select("*"));
+      const res = await withRetry(async () => supabaseClient!.from("users").select("*"));
       if (res.error) throw res.error;
       usersData = res.data || [];
     } catch (err: any) {
@@ -258,39 +261,39 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
       if (!u.phone) {
         const random9Digit = Math.floor(100000000 + Math.random() * 900000000);
         u.phone = `+91 9${random9Digit}`;
-        await withRetry(() => supabaseClient!.from("users").upsert(u));
+        await withRetry(async () => supabaseClient!.from("users").upsert(u));
       }
       users.push(u);
     }
 
     // 2. Seed both Supabase and Local if Supabase contains no users
     if (users.length === 0) {
-      console.log("[VIIT AMS] Cloud Supabase is empty. Seeding defaults from System Cell records...");
-      const seeded = seedDatabase();
+      console.log("[VIIT AMS] Cloud Supabase is empty. Assuring fallback sync...");
+      const seeded = localBackup;
 
-      for (const u of seeded.users) {
-        await withRetry(() => supabaseClient!.from("users").upsert(u));
+      for (const u of seeded.users || []) {
+        await withRetry(async () => supabaseClient!.from("users").upsert(u));
       }
-      for (const a of seeded.assets) {
-        await withRetry(() => supabaseClient!.from("assets").upsert(a));
+      for (const a of seeded.assets || []) {
+        await withRetry(async () => supabaseClient!.from("assets").upsert(a));
       }
-      for (const r of seeded.requests) {
-        await withRetry(() => supabaseClient!.from("requests").upsert(r));
+      for (const r of seeded.requests || []) {
+        await withRetry(async () => supabaseClient!.from("requests").upsert(r));
       }
-      for (const l of seeded.maintenance_logs) {
-        await withRetry(() => supabaseClient!.from("maintenance_logs").upsert(l));
+      for (const l of seeded.maintenance_logs || []) {
+        await withRetry(async () => supabaseClient!.from("maintenance_logs").upsert(l));
       }
-      for (const aud of seeded.audits) {
-        await withRetry(() => supabaseClient!.from("audits").upsert(aud));
+      for (const aud of seeded.audits || []) {
+        await withRetry(async () => supabaseClient!.from("audits").upsert(aud));
       }
 
       const defaultBudget: BudgetConfig = { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null };
-      await withRetry(() => supabaseClient!.from("budgets").upsert({ id: 'config', ...defaultBudget }));
+      await withRetry(async () => supabaseClient!.from("budgets").upsert({ id: 'config', ...defaultBudget }));
 
       dbCache = {
         ...seeded,
-        suggestions: [],
-        budgets: defaultBudget
+        suggestions: seeded.suggestions || [],
+        budgets: seeded.budgets || defaultBudget
       };
 
       lastSyncedDbStr = JSON.stringify(dbCache);
@@ -302,7 +305,7 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
     console.log("[VIIT AMS] Preheating: fetching assets...");
     let assetsData: any[] = [];
     try {
-      const res = await withRetry(() => supabaseClient!.from("assets").select("*"));
+      const res = await withRetry(async () => supabaseClient!.from("assets").select("*"));
       assetsData = res.data || [];
     } catch (err: any) {
       console.error("[VIIT AMS] Failed fetching assets collection after retries:", err.message || err);
@@ -312,7 +315,7 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
     console.log("[VIIT AMS] Preheating: fetching requests...");
     let requestsData: any[] = [];
     try {
-      const res = await withRetry(() => supabaseClient!.from("requests").select("*"));
+      const res = await withRetry(async () => supabaseClient!.from("requests").select("*"));
       requestsData = res.data || [];
     } catch (err: any) {
       console.error("[VIIT AMS] Failed fetching requests collection after retries:", err.message || err);
@@ -322,7 +325,7 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
     console.log("[VIIT AMS] Preheating: fetching maintenance_logs...");
     let logsData: any[] = [];
     try {
-      const res = await withRetry(() => supabaseClient!.from("maintenance_logs").select("*"));
+      const res = await withRetry(async () => supabaseClient!.from("maintenance_logs").select("*"));
       logsData = res.data || [];
     } catch (err: any) {
       console.error("[VIIT AMS] Failed fetching maintenance_logs collection after retries:", err.message || err);
@@ -332,7 +335,7 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
     console.log("[VIIT AMS] Preheating: fetching audits...");
     let auditsData: any[] = [];
     try {
-      const res = await withRetry(() => supabaseClient!.from("audits").select("*"));
+      const res = await withRetry(async () => supabaseClient!.from("audits").select("*"));
       auditsData = res.data || [];
     } catch (err: any) {
       console.error("[VIIT AMS] Failed fetching audits collection after retries:", err.message || err);
@@ -342,7 +345,7 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
     console.log("[VIIT AMS] Preheating: fetching suggestions...");
     let suggestionsData: any[] = [];
     try {
-      const res = await withRetry(() => supabaseClient!.from("suggestions").select("*"));
+      const res = await withRetry(async () => supabaseClient!.from("suggestions").select("*"));
       suggestionsData = res.data || [];
     } catch (err: any) {
       console.error("[VIIT AMS] Failed fetching suggestions collection after retries:", err.message || err);
@@ -352,7 +355,7 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
     console.log("[VIIT AMS] Preheating: fetching budgets...");
     let budgets: BudgetConfig = { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null };
     try {
-      const budgetRes = await withRetry(() => supabaseClient!.from("budgets").select("*").eq("id", "config").single());
+      const budgetRes = await withRetry(async () => supabaseClient!.from("budgets").select("*").eq("id", "config").single());
       if (budgetRes.data) {
         budgets = budgetRes.data as BudgetConfig;
       }
@@ -526,7 +529,7 @@ async function syncToSupabase(prev: DatabaseSchema, current: DatabaseSchema) {
   await syncCollection("suggestions", prev.suggestions || [], current.suggestions || []);
 
   if (JSON.stringify(prev.budgets) !== JSON.stringify(current.budgets)) {
-    await supabaseClient!.from("budgets").upsert({ id: "config", ...current.budgets } || { id: "config", grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null });
+    await supabaseClient!.from("budgets").upsert({ id: "config", ...(current.budgets || { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null }) });
   }
 }
 
@@ -562,7 +565,7 @@ export async function forceSyncAllToSupabase(): Promise<{ success: boolean; user
     await forcePushCollection("suggestions", current.suggestions);
   }
 
-  await supabaseClient!.from("budgets").upsert({ id: "config", ...current.budgets } || { id: "config", grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null });
+  await supabaseClient!.from("budgets").upsert({ id: "config", ...(current.budgets || { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null }) });
 
   return {
     success: true,
