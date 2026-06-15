@@ -227,8 +227,17 @@ function writeLocalDbBackup(data: DatabaseSchema): void {
 }
 
 // Pre-heat database from Cloud Supabase asynchronously at boot time
+let isPreheating = false;
 export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
-  console.log("[VIIT AMS] Database preheating: synchronized with Cloud Supabase...");
+  if (isPreheating) {
+    return dbCache || getLocalDbBackup();
+  }
+
+  if (pendingWrites.length > 0) {
+    console.log("[VIIT AMS] Postponing preheat/down-sync because there are pending background writes in progress...");
+    return dbCache || getLocalDbBackup();
+  }
+
   const localBackup = getLocalDbBackup();
 
   if (!supabaseClient) {
@@ -236,6 +245,9 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
     dbCache = localBackup;
     return dbCache;
   }
+
+  isPreheating = true;
+  console.log("[VIIT AMS] Database preheating: synchronized with Cloud Supabase...");
 
   try {
     // 1. Fetch Users
@@ -298,6 +310,7 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
 
       lastSyncedDbStr = JSON.stringify(dbCache);
       writeLocalDbBackup(dbCache);
+      cacheTimestamp = Date.now();
       return dbCache;
     }
 
@@ -447,6 +460,8 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
     console.error("[VIIT AMS] Error downloading from Cloud Supabase. Reverting to persistent backup:", err);
     dbCache = localBackup;
     return dbCache;
+  } finally {
+    isPreheating = false;
   }
 }
 
