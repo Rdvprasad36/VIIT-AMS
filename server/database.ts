@@ -14,7 +14,7 @@ const DB_FILE = path.join(DATA_DIR, "database.json");
 export type UserRole = "super_admin" | "asset_manager" | "employee" | "auditor" | "maintenance_team" | "web_developer";
 export type AssetStatus = "available" | "allocated" | "maintenance" | "disposed" | "return_pending";
 export type RequestStatus = "pending" | "approved" | "rejected";
-export type RepairStatus = "reported" | "in_progress" | "resolved" | "unrepairable";
+export type RepairStatus = "reported" | "in_progress" | "awaiting_approval" | "resolved" | "unrepairable";
 
 export interface User {
   id: number;
@@ -101,6 +101,16 @@ export interface BudgetConfig {
   cumulativeOutlaysOverride?: number | null;
 }
 
+export interface ValuationReport {
+  id: number;
+  report_date: string;
+  generated_by_id: number;
+  generated_by_name: string;
+  total_assets: number;
+  total_valuation: number;
+  total_repair_cost: number;
+}
+
 export interface UtilizationReport {
   id: number;
   report_date: string;
@@ -121,6 +131,7 @@ export interface DatabaseSchema {
   suggestions?: Suggestion[]; // Dynamic feedback support
   budgets?: BudgetConfig;
   utilization_reports?: UtilizationReport[];
+  valuation_reports?: ValuationReport[];
 }
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -214,6 +225,8 @@ function getLocalDbBackup(): DatabaseSchema {
   }
 
   if (!db.suggestions) db.suggestions = [];
+  if (!db.utilization_reports) db.utilization_reports = [];
+  if (!db.valuation_reports) db.valuation_reports = [];
   if (!db.budgets) db.budgets = { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null };
   if (!lastSyncedDbStr) {
     lastSyncedDbStr = JSON.stringify(db);
@@ -228,7 +241,13 @@ function writeLocalDbBackup(data: DatabaseSchema): void {
 
 // Pre-heat database from Cloud Supabase asynchronously at boot time
 let isPreheating = false;
-export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
+let isPreheatedSuccessfully = false;
+
+export async function preloadDbFromSupabase(forceRecalculate = false): Promise<DatabaseSchema> {
+  if (isPreheatedSuccessfully && !forceRecalculate) {
+    return dbCache || getLocalDbBackup();
+  }
+
   if (isPreheating) {
     return dbCache || getLocalDbBackup();
   }
@@ -376,6 +395,17 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
       console.warn("[VIIT AMS] Failed to fetch budgets override:", e.message || e);
     }
 
+    console.log("[VIIT AMS] Preheating: fetching utilization_reports...");
+    let utilizationReportsData: any[] = [];
+    try {
+      const res = await withRetry(async () => supabaseClient!.from("utilization_reports").select("*"));
+      utilizationReportsData = res.data || [];
+    } catch (err: any) {
+      // Quietly fall back, as utilization_reports is optional and may be saved purely locally
+      utilizationReportsData = localBackup.utilization_reports || [];
+    }
+    const utilization_reports: UtilizationReport[] = utilizationReportsData as UtilizationReport[];
+
     dbCache = {
       users: users.sort((a, b) => a.id - b.id),
       assets: assets.sort((a, b) => a.id - b.id),
@@ -383,6 +413,7 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
       maintenance_logs: maintenance_logs.sort((a, b) => a.id - b.id),
       audits: audits.sort((a, b) => b.id - a.id),
       suggestions: suggestions.sort((a, b) => a.id - b.id),
+      utilization_reports: utilization_reports.sort((a, b) => a.id - b.id),
       budgets
     };
 
@@ -455,6 +486,7 @@ export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
     console.log(`[VIIT AMS] Cloud cache ready. Loaded ${dbCache.users.length} users, ${dbCache.assets.length} assets, ${dbCache.requests.length} claims.`);
     lastSyncedDbStr = JSON.stringify(dbCache);
     cacheTimestamp = Date.now();
+    isPreheatedSuccessfully = true;
     return dbCache;
   } catch (err) {
     console.error("[VIIT AMS] Error downloading from Cloud Supabase. Reverting to persistent backup:", err);
@@ -474,7 +506,7 @@ export function getDb(): DatabaseSchema {
   
   // Background cache refresh every 15 seconds so we are never more than 15s behind but don't block reads
   if (supabaseClient && Date.now() - cacheTimestamp > 15000) {
-    preloadDbFromSupabase().catch((err) => {
+    preloadDbFromSupabase(true).catch((err) => {
       console.warn("[VIIT AMS] Background preload automatic cache refresh failed:", err.message || err);
     });
   }
@@ -486,7 +518,7 @@ export function getDb(): DatabaseSchema {
 export function writeDb(data: DatabaseSchema): void {
   const prevParsed: DatabaseSchema = lastSyncedDbStr
     ? JSON.parse(lastSyncedDbStr)
-    : { users: [], assets: [], requests: [], maintenance_logs: [], audits: [], suggestions: [], utilization_reports: [] };
+    : { users: [], assets: [], requests: [], maintenance_logs: [], audits: [], suggestions: [], utilization_reports: [], valuation_reports: [] };
   
   const currentCopied = JSON.parse(JSON.stringify(data));
 
@@ -535,16 +567,54 @@ async function syncToSupabase(prev: DatabaseSchema, current: DatabaseSchema) {
     }
   };
 
-  await syncCollection("users", prev.users || [], current.users || []);
-  await syncCollection("assets", prev.assets || [], current.assets || []);
-  await syncCollection("requests", prev.requests || [], current.requests || []);
-  await syncCollection("maintenance_logs", prev.maintenance_logs || [], current.maintenance_logs || []);
-  await syncCollection("audits", prev.audits || [], current.audits || []);
-  await syncCollection("utilization_reports", prev.utilization_reports || [], current.utilization_reports || []);
-  await syncCollection("suggestions", prev.suggestions || [], current.suggestions || []);
+  try {
+    await syncCollection("users", prev.users || [], current.users || []);
+  } catch (err: any) {
+    console.error("[VIIT AMS] Failed to sync users to Supabase:", err.message || err);
+  }
+
+  try {
+    await syncCollection("assets", prev.assets || [], current.assets || []);
+  } catch (err: any) {
+    console.error("[VIIT AMS] Failed to sync assets to Supabase:", err.message || err);
+  }
+
+  try {
+    await syncCollection("requests", prev.requests || [], current.requests || []);
+  } catch (err: any) {
+    console.error("[VIIT AMS] Failed to sync requests to Supabase:", err.message || err);
+  }
+
+  try {
+    await syncCollection("maintenance_logs", prev.maintenance_logs || [], current.maintenance_logs || []);
+  } catch (err: any) {
+    console.error("[VIIT AMS] Failed to sync maintenance_logs to Supabase:", err.message || err);
+  }
+
+  try {
+    await syncCollection("audits", prev.audits || [], current.audits || []);
+  } catch (err: any) {
+    console.error("[VIIT AMS] Failed to sync audits to Supabase:", err.message || err);
+  }
+
+  try {
+    await syncCollection("utilization_reports", prev.utilization_reports || [], current.utilization_reports || []);
+  } catch (err: any) {
+    // Quietly ignore since utilization_reports is saved locally
+  }
+
+  try {
+    await syncCollection("suggestions", prev.suggestions || [], current.suggestions || []);
+  } catch (err: any) {
+    console.error("[VIIT AMS] Failed to sync suggestions to Supabase:", err.message || err);
+  }
 
   if (JSON.stringify(prev.budgets) !== JSON.stringify(current.budgets)) {
-    await supabaseClient!.from("budgets").upsert({ id: "config", ...(current.budgets || { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null }) });
+    try {
+      await supabaseClient!.from("budgets").upsert({ id: "config", ...(current.budgets || { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null }) });
+    } catch (err: any) {
+      console.error("[VIIT AMS] Failed to sync budgets override to Supabase:", err.message || err);
+    }
   }
 }
 
@@ -570,17 +640,33 @@ export async function forceSyncAllToSupabase(): Promise<{ success: boolean; user
   await forcePushCollection("assets", current.assets);
   await forcePushCollection("requests", current.requests);
   await forcePushCollection("maintenance_logs", current.maintenance_logs);
-  await forcePushCollection("audits", current.audits);
+  try {
+    await forcePushCollection("audits", current.audits);
+  } catch (err: any) {
+    console.error("[VIIT AMS] Failed to force sync audits collection:", err.message || err);
+  }
   
   if (current.utilization_reports) {
-    await forcePushCollection("utilization_reports", current.utilization_reports);
+    try {
+      await forcePushCollection("utilization_reports", current.utilization_reports);
+    } catch (err: any) {
+      // Quietly ignore
+    }
   }
   
   if (current.suggestions) {
-    await forcePushCollection("suggestions", current.suggestions);
+    try {
+      await forcePushCollection("suggestions", current.suggestions);
+    } catch (err: any) {
+      console.error("[VIIT AMS] Failed to force sync suggestions collection:", err.message || err);
+    }
   }
 
-  await supabaseClient!.from("budgets").upsert({ id: "config", ...(current.budgets || { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null }) });
+  try {
+    await supabaseClient!.from("budgets").upsert({ id: "config", ...(current.budgets || { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null }) });
+  } catch (err: any) {
+    console.error("[VIIT AMS] Failed to force sync budgets config:", err.message || err);
+  }
 
   return {
     success: true,
@@ -643,7 +729,9 @@ function seedDatabase(): DatabaseSchema {
     requests,
     maintenance_logs,
     audits,
-    suggestions: []
+    suggestions: [],
+    utilization_reports: [],
+    valuation_reports: []
   };
 }
 

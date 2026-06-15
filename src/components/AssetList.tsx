@@ -890,9 +890,9 @@ export default function AssetList({
               <div>
                 <h3 className="text-lg font-bold font-display flex items-center gap-2">
                   <Wrench className="w-5 h-5" />
-                  Report Asset Failure
+                  Submit Asset Failure
                 </h3>
-                <p className="text-xs text-amber-100">Report an issue with this asset</p>
+                <p className="text-xs text-amber-100">Submit an issue with this asset</p>
               </div>
               <button onClick={() => setActiveMaintenanceAsset(null)} className="text-white hover:text-amber-200 p-1">
                 <X className="w-5 h-5" />
@@ -918,22 +918,6 @@ export default function AssetList({
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Assign Technician (Optional)</label>
-                <select 
-                  value={selectedTechnicianId}
-                  onChange={(e) => setSelectedTechnicianId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-600 bg-white cursor-pointer"
-                >
-                  <option value="">-- Leave Unassigned / Blank --</option>
-                  {technicians.map((tech) => (
-                    <option key={tech.id} value={tech.id}>
-                      {tech.name} ({tech.department || "Estate & Operations"})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               <div className="pt-3 flex justify-end gap-3 border-t border-slate-150">
                 <button 
                   type="button"
@@ -947,7 +931,7 @@ export default function AssetList({
                   disabled={isSubmittingMaintenance}
                   className="px-5 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-sm font-semibold transition"
                 >
-                  {isSubmittingMaintenance ? "Dispatching..." : "Dispatch Repair Ticket"}
+                  {isSubmittingMaintenance ? "Submitting..." : "Submit"}
                 </button>
               </div>
             </form>

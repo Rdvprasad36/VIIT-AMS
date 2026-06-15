@@ -144,6 +144,18 @@ CREATE TABLE IF NOT EXISTS public.budgets (
   "cumulativeOutlaysOverride" NUMERIC
 );
 
+-- Table: utilization_reports (Compliance and metrics snapshots)
+CREATE TABLE IF NOT EXISTS public.utilization_reports (
+  id BIGINT PRIMARY KEY,
+  report_date TEXT NOT NULL,
+  generated_by_id BIGINT REFERENCES public.users(id) ON DELETE SET NULL,
+  generated_by_name TEXT,
+  total_assets BIGINT NOT NULL,
+  allocated_assets BIGINT NOT NULL,
+  available_assets BIGINT NOT NULL,
+  maintenance_assets BIGINT NOT NULL
+);
+
 -- =========================================================================
 -- 3. Temporarily Disable RLS (Row Level Security) 
 --    (Optional: This ensures local standalone servers have full access)
@@ -155,4 +167,5 @@ ALTER TABLE public.maintenance_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audits DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.suggestions DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.budgets DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.utilization_reports DISABLE ROW LEVEL SECURITY;
 

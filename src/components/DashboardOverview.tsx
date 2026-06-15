@@ -187,6 +187,76 @@ export default function DashboardOverview({
     document.body.removeChild(link);
   };
 
+  // Excel (.csv UTF-8) Downloader for Institutional Valuation Report
+  const downloadInstitutionalValuationReportExcel = async () => {
+    if (!assets || assets.length === 0) {
+      toast.error("No assets found in the inventory registers to build valuation report.");
+      return;
+    }
+
+    try {
+      await api.post("/dashboard/log-valuation-report");
+    } catch (e) {
+      console.error("Failed to log valuation report on backend.", e);
+    }
+
+    const headers = [
+      "Asset Tag",
+      "Asset Name",
+      "Capital Value (Money Created - INR)",
+      "Total Repair Outlay (Money Needed/Spent - INR)",
+      "Active Claimant (Who Claimed)",
+      "Requisition Requesters (Who Requested)",
+      "Room Location",
+      "Asset Status"
+    ];
+
+    const rows = assets.map(asset => {
+      const escape = (val: any) => {
+        const text = String(val ?? "").replace(/"/g, '""');
+        return `"${text}"`;
+      };
+
+      // Money created (acquisition cost)
+      const moneyCreated = asset.cost || 0;
+
+      // Money needed/spent to repair
+      const assetRepairs = maintenanceLogs.filter(log => log.asset_id === asset.id);
+      const moneyNeeded = assetRepairs.reduce((acc, r) => acc + (r.cost || 0), 0);
+
+      // Who claimed (Active Claimant)
+      const claimant = asset.allocated_to ? asset.allocated_to : "Unallocated";
+
+      // Who requested (Requisition Requesters)
+      const assetRequests = requests.filter(r => r.asset_id === asset.id);
+      const requestersList = assetRequests.length > 0 
+        ? assetRequests.map(r => `${r.requester_name} (${r.requester_dept})`).join(" | ")
+        : "No requests";
+
+      return [
+        escape(asset.asset_tag),
+        escape(asset.name),
+        escape(moneyCreated),
+        escape(moneyNeeded),
+        escape(claimant),
+        escape(requestersList),
+        escape(asset.location),
+        escape(asset.status.toUpperCase())
+      ].join(",");
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `viit_ams_institutional_valuation_report_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Institutional Valuation Report downloaded successfully.");
+  };
+
   // Inline approval handler for swift dashboard actioning
   const handleQuickAction = async (status: "approved" | "rejected") => {
     if (!activeActionReq || !onActionRequest) return;
@@ -269,6 +339,18 @@ export default function DashboardOverview({
             >
               <Download className="w-3.5 h-3.5 text-indigo-600" />
               <span>Utilization Report (Excel)</span>
+            </button>
+          )}
+
+          {/* Institutional Valuation Excel Downloader */}
+          {(user.role === "super_admin" || user.role === "web_developer" || user.role === "asset_manager" || user.role === "auditor") && (
+            <button 
+              onClick={downloadInstitutionalValuationReportExcel}
+              className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-xl border border-amber-200 transition-colors cursor-pointer"
+              title="Download Microsoft Excel Institutional Valuation spreadsheet (.csv)"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-600" />
+              <span>Institutional Valuation (Excel)</span>
             </button>
           )}
           
@@ -690,9 +772,9 @@ export default function DashboardOverview({
             <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
               <div>
                 <h3 className="text-lg font-bold font-display flex items-center gap-1.5 text-white">
-                  Evaluate Allocation request
+                  Evaluate Allocation
                 </h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">Validate physical resource claim #{activeActionReq.id}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Evaluate Allocation</p>
               </div>
               <button 
                 onClick={() => {
@@ -735,25 +817,25 @@ export default function DashboardOverview({
                     setActiveActionReq(null);
                     setActionComments("");
                   }}
-                  className="px-4 py-2 text-xs border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold order-last sm:order-first transition cursor-pointer"
+                  className="px-4 py-2 text-xs border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-xl font-semibold order-last sm:order-first transition cursor-pointer capitalize"
                 >
-                  Cancel
+                  cancel
                 </button>
                 <button 
                   type="button"
                   disabled={isSubmittingAction}
                   onClick={() => handleQuickAction("rejected")}
-                  className="px-4 py-2 text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold tracking-tight transition cursor-pointer"
+                  className="px-4 py-2 text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold tracking-tight transition cursor-pointer capitalize"
                 >
-                  Reject claim
+                  reject
                 </button>
                 <button 
                   type="button"
                   disabled={isSubmittingAction}
                   onClick={() => handleQuickAction("approved")}
-                  className="px-4 py-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold tracking-tight transition cursor-pointer"
+                  className="px-4 py-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold tracking-tight transition cursor-pointer capitalize"
                 >
-                  Approve claim
+                  approve
                 </button>
               </div>
             </div>

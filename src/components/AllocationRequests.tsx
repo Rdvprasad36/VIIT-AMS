@@ -87,8 +87,9 @@ export default function AllocationRequests({
       await onActionRequest(activeActionReq.id, status, actionComments.trim());
       setActiveActionReq(null);
       setActionComments("");
-    } catch (err) {
-      toast.error("Failed to record allocation decision.");
+    } catch (err: any) {
+      const errMsg = err.response?.data?.error || err.message || "Unknown error";
+      toast.error(`Failed to record allocation decision: ${errMsg}`);
     } finally {
       setIsSubmittingAction(false);
     }
@@ -269,9 +270,9 @@ export default function AllocationRequests({
               <div>
                 <h3 className="text-lg font-bold font-display flex items-center gap-1.5">
                   <FileCheck className="w-5 h-5 text-vignanBlue" />
-                  Evaluate Allocation dossier
+                  Evaluate Allocation
                 </h3>
-                <p className="text-xs text-slate-400">Validate physical resource claim #{activeActionReq.id}</p>
+                <p className="text-xs text-slate-400">Evaluate Allocation</p>
               </div>
               <button onClick={() => setActiveActionReq(null)} className="text-white hover:text-red-300 p-1">
                 <X className="w-5 h-5" />
@@ -305,25 +306,25 @@ export default function AllocationRequests({
                 <button 
                   type="button"
                   onClick={() => setActiveActionReq(null)}
-                  className="px-4 py-2 text-xs border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-lg font-medium order-last sm:order-first"
+                  className="px-4 py-2 text-xs border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-lg font-medium order-last sm:order-first capitalize"
                 >
-                  Cancel Evaluation
+                  cancel
                 </button>
                 <button 
                   type="button"
                   disabled={isSubmittingAction}
                   onClick={() => handleActionSubmit("rejected")}
-                  className="px-4 py-2 text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-semibold transition cursor-pointer"
+                  className="px-4 py-2 text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-semibold transition cursor-pointer capitalize"
                 >
-                  Reject & Return Requisition
+                  reject
                 </button>
                 <button 
                   type="button"
                   disabled={isSubmittingAction}
                   onClick={() => handleActionSubmit("approved")}
-                  className="px-4 py-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition cursor-pointer"
+                  className="px-4 py-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition cursor-pointer capitalize"
                 >
-                  Approve Requisition
+                  approve
                 </button>
               </div>
             </div>

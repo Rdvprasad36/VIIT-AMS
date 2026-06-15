@@ -976,96 +976,102 @@ router.post("/requests", verifyToken, authorize(["employee"]), (req: Authenticat
 
 // Approve / Reject Request (Asset Manager / Super Admin)
 router.put("/requests/:id/action", verifyToken, authorize(["super_admin", "asset_manager", "web_developer"]), (req: AuthenticatedRequest, res) => {
-  const reqId = parseInt(req.params.id);
-  const { status, comments } = req.body; // 'approved' or 'rejected'
+  try {
+    const reqId = parseInt(req.params.id);
+    const { status, comments } = req.body; // 'approved' or 'rejected'
 
-  if (status !== "approved" && status !== "rejected") {
-    return res.status(400).json({ error: "Invalid status state. Must be 'approved' or 'rejected'." });
-  }
-
-  const db = getDb();
-  const request = db.requests.find((r) => r.id === reqId);
-
-  if (!request) {
-    return res.status(404).json({ error: "Asset allocation request not found." });
-  }
-
-  if (request.status !== "pending") {
-    return res.status(400).json({ error: "Request is already processed." });
-  }
-
-  const asset = db.assets.find((a) => a.id === request.asset_id);
-  if (!asset) {
-    return res.status(404).json({ error: "Associated asset no longer exists in repository." });
-  }
-
-  request.status = status as RequestStatus;
-  request.action_date = new Date().toISOString();
-  request.comments = comments || "";
-  request.manager_id = req.user!.id;
-
-  const isReturnRequest = request.purpose.startsWith("[RETURN REQUEST]");
-
-  // If approved, update associated asset state
-  if (status === "approved") {
-    if (isReturnRequest) {
-      asset.status = "available";
-      asset.allocated_to = undefined;
-      asset.allocated_to_id = undefined;
-    } else {
-      asset.status = "allocated";
-      
-      // Find the user to get their name
-      const requestingUser = db.users.find(u => u.id === request.user_id);
-      asset.allocated_to = requestingUser ? requestingUser.name : "Unknown User";
-      asset.allocated_to_id = request.user_id;
-      
-      // Auto reject other pending requests for the same asset
-      db.requests.forEach((r) => {
-        if (r.id !== reqId && r.asset_id === asset.id && r.status === "pending") {
-          r.status = "rejected";
-          r.action_date = new Date().toISOString();
-          r.comments = "Asset has been allocated to another higher priority requisition request.";
-        }
-      });
+    if (status !== "approved" && status !== "rejected") {
+      return res.status(400).json({ error: "Invalid status state. Must be 'approved' or 'rejected'." });
     }
-  } else if (status === "rejected") {
-    if (isReturnRequest) {
-      asset.status = "allocated";
+
+    const db = getDb();
+    const request = db.requests.find((r) => r && Number(r.id) === Number(reqId));
+
+    if (!request) {
+      return res.status(404).json({ error: "Asset allocation request not found." });
     }
+
+    if (request.status !== "pending") {
+      return res.status(400).json({ error: "Request is already processed." });
+    }
+
+    const asset = db.assets.find((a) => a && Number(a.id) === Number(request.asset_id));
+    if (!asset) {
+      return res.status(404).json({ error: "Associated asset no longer exists in repository." });
+    }
+
+    request.status = status as RequestStatus;
+    request.action_date = new Date().toISOString();
+    request.comments = comments || "";
+    request.manager_id = req.user!.id;
+
+    const requestPurposeStr = request.purpose || "";
+    const isReturnRequest = requestPurposeStr.startsWith("[RETURN REQUEST]");
+
+    // If approved, update associated asset state
+    if (status === "approved") {
+      if (isReturnRequest) {
+        asset.status = "available";
+        asset.allocated_to = undefined;
+        asset.allocated_to_id = undefined;
+      } else {
+        asset.status = "allocated";
+        
+        // Find the user to get their name
+        const requestingUser = db.users.find(u => u && Number(u.id) === Number(request.user_id));
+        asset.allocated_to = requestingUser ? requestingUser.name : "Unknown User";
+        asset.allocated_to_id = request.user_id;
+        
+        // Auto reject other pending requests for the same asset
+        db.requests.forEach((r) => {
+          if (r && Number(r.id) !== Number(reqId) && Number(r.asset_id) === Number(asset.id) && r.status === "pending") {
+            r.status = "rejected";
+            r.action_date = new Date().toISOString();
+            r.comments = "Asset has been allocated to another higher priority requisition request.";
+          }
+        });
+      }
+    } else if (status === "rejected") {
+      if (isReturnRequest) {
+        asset.status = "allocated";
+      }
+    }
+
+    // Record utilization snapshot history entry during request status update
+    db.utilization_reports = db.utilization_reports || [];
+    const totalAssets = db.assets.filter(Boolean).length;
+    const availableCount = db.assets.filter((a) => a && a.status === "available").length;
+    const allocatedCount = db.assets.filter((a) => a && (a.status === "allocated" || a.status === "return_pending")).length;
+    const maintenanceCount = db.assets.filter((a) => a && a.status === "maintenance").length;
+
+    const actionReport = {
+      id: db.utilization_reports.length > 0 ? Math.max(0, ...db.utilization_reports.map((r) => (r && r.id) || 0)) + 1 : 1,
+      report_date: new Date().toISOString(),
+      generated_by_id: req.user!.id,
+      generated_by_name: req.user!.name,
+      total_assets: totalAssets,
+      allocated_assets: allocatedCount,
+      available_assets: availableCount,
+      maintenance_assets: maintenanceCount
+    };
+    db.utilization_reports.push(actionReport);
+
+    writeDb(db);
+
+    logSystemEvent(
+      req.user!.id,
+      req.user!.name,
+      status === "approved" ? "REQUEST_APPROVED" : "REQUEST_REJECTED",
+      "requests",
+      reqId,
+      `Requisition for asset ${asset.asset_tag} was ${status} by ${req.user!.name}.`
+    );
+
+    res.json(request);
+  } catch (err: any) {
+    console.error("[VIIT AMS] Action request endpoint failed:", err);
+    res.status(500).json({ error: `Internal error processing allocation decision: ${err.message || err}` });
   }
-
-  // Record utilization snapshot history entry during request status update
-  db.utilization_reports = db.utilization_reports || [];
-  const totalAssets = db.assets.length;
-  const availableCount = db.assets.filter((a) => a.status === "available").length;
-  const allocatedCount = db.assets.filter((a) => a.status === "allocated" || a.status === "return_pending").length;
-  const maintenanceCount = db.assets.filter((a) => a.status === "maintenance").length;
-
-  const actionReport = {
-    id: db.utilization_reports.length > 0 ? Math.max(0, ...db.utilization_reports.map((r) => r.id || 0)) + 1 : 1,
-    report_date: new Date().toISOString(),
-    generated_by_id: req.user!.id,
-    generated_by_name: req.user!.name,
-    total_assets: totalAssets,
-    allocated_assets: allocatedCount,
-    available_assets: availableCount,
-    maintenance_assets: maintenanceCount
-  };
-  db.utilization_reports.push(actionReport);
-
-  writeDb(db);
-
-  logSystemEvent(
-    req.user!.id,
-    req.user!.name,
-    status === "approved" ? "REQUEST_APPROVED" : "REQUEST_REJECTED",
-    "requests",
-    reqId,
-    `Requisition for asset ${asset.asset_tag} was ${status} by ${req.user!.name}.`
-  );
-
-  res.json(request);
 });
 
 // Delete individual requisition request details (Asset Manager / Super Admin)
@@ -1189,7 +1195,7 @@ router.post("/maintenance", verifyToken, (req: AuthenticatedRequest, res) => {
 // Update Maintenance Status (Estate Office/Maintenance Team OR Asset Manager)
 router.put("/maintenance/:id", verifyToken, authorize(["super_admin", "asset_manager", "maintenance_team", "web_developer"]), (req: AuthenticatedRequest, res) => {
   const logId = parseInt(req.params.id);
-  const { repair_status, cost, comments } = req.body; // 'reported', 'in_progress', 'resolved', 'unrepairable'
+  const { repair_status, cost, comments, assigned_to } = req.body; 
 
   if (!repair_status) {
     return res.status(400).json({ error: "Repair status is required." });
@@ -1207,8 +1213,10 @@ router.put("/maintenance/:id", verifyToken, authorize(["super_admin", "asset_man
     return res.status(444).json({ error: "Associated asset no longer exists." });
   }
 
-  // Update technician assignment to current user if log wasn't assigned
-  if (!log.assigned_to && req.user!.role === "maintenance_team") {
+  // Update technician assignment to requested user (by admin) or current user if not assigned
+  if (assigned_to !== undefined && ["super_admin", "asset_manager", "web_developer"].includes(req.user!.role)) {
+    log.assigned_to = assigned_to ? parseInt(assigned_to) : undefined;
+  } else if (!log.assigned_to && req.user!.role === "maintenance_team") {
     log.assigned_to = req.user!.id;
   }
 
@@ -1223,8 +1231,13 @@ router.put("/maintenance/:id", verifyToken, authorize(["super_admin", "asset_man
   // Handle asset inventory updates based on resolution outcomes
   if (repair_status === "resolved") {
     asset.status = "available"; // Put back to available
+    // Also remove reference to allocated user if resolved
+    asset.allocated_to = undefined;
+    asset.allocated_to_id = undefined;
   } else if (repair_status === "unrepairable") {
     asset.status = "disposed"; // Decommissioned permanently
+    asset.allocated_to = undefined;
+    asset.allocated_to_id = undefined;
   } else {
     asset.status = "maintenance"; // Keep in repair loop
   }
@@ -1346,6 +1359,40 @@ router.post("/dashboard/log-utilization-report", verifyToken, authorize(["super_
   res.json({ success: true, report });
 });
 
+// Endpoint to log Institutional Valuation Report in local db
+router.post("/dashboard/log-valuation-report", verifyToken, authorize(["super_admin", "asset_manager", "web_developer"]), (req: AuthenticatedRequest, res) => {
+  const db = getDb();
+  const totalAssets = db.assets.length;
+  const totalValuation = db.assets.reduce((acc, a) => acc + (a.cost || 0), 0);
+  const totalRepairCost = db.maintenance_logs.reduce((acc, m) => acc + (m.cost || 0), 0);
+
+  db.valuation_reports = db.valuation_reports || [];
+  
+  const report = {
+    id: db.valuation_reports.length > 0 ? Math.max(0, ...db.valuation_reports.map((r) => r.id || 0)) + 1 : 1,
+    report_date: new Date().toISOString(),
+    generated_by_id: req.user!.id,
+    generated_by_name: req.user!.name,
+    total_assets: totalAssets,
+    total_valuation: totalValuation,
+    total_repair_cost: totalRepairCost,
+  };
+
+  db.valuation_reports.push(report);
+  writeDb(db);
+
+  logSystemEvent(
+    req.user!.id,
+    req.user!.name,
+    "VALUATION_REPORT_GENERATED",
+    "valuation_reports",
+    report.id,
+    `Institutional Valuation Report #${report.id} was compiled into the database registers by ${req.user!.name}.`
+  );
+
+  res.json({ success: true, report });
+});
+
 // Get Dynamic System Notifications for User Role
 router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
   const db = getDb();
@@ -1415,20 +1462,32 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
 
     // 3. Unresolved Maintenance Alert
     db.maintenance_logs.forEach((m) => {
-      if (m.repair_status === "reported" || m.repair_status === "in_progress") {
+      if (m.repair_status === "reported" || m.repair_status === "in_progress" || m.repair_status === "awaiting_approval") {
         const asset = db.assets.find((a) => a.id === m.asset_id);
         const name = asset ? asset.name : "Unknown Asset";
         const tag = asset ? asset.asset_tag : "N/A";
         const reporter = db.users.find((u) => u.id === m.reported_by);
         const reporterText = reporter ? (reporter.id === user.id ? "You" : reporter.name) : "System";
-        addNotification(
-          `maint-unresolved-${m.id}`,
-          "maintenance_all",
-          "Unresolved Maintenance Alert",
-          `Issue "${m.issue_description}" reported for ${name} (#${tag}) at Room ${asset ? asset.location : "N/A"}. Reported by: ${reporterText}`,
-          "warning",
-          m.created_at
-        );
+        
+        if (m.repair_status === "awaiting_approval") {
+          addNotification(
+            `maint-approval-${m.id}`,
+            "maintenance_all",
+            "Repair Awaiting Accomplishment Approval",
+            `Technician completed repair on ${name} (#${tag}) for ₹${m.cost}. Awaiting your final approval/sign-off.`,
+            "danger",
+            m.updated_at || m.created_at
+          );
+        } else {
+          addNotification(
+            `maint-unresolved-${m.id}`,
+            "maintenance_all",
+            "Unresolved Maintenance Alert",
+            `Issue "${m.issue_description}" reported for ${name} (#${tag}) at Room ${asset ? asset.location : "N/A"}. Reported by: ${reporterText}`,
+            "warning",
+            m.created_at
+          );
+        }
       }
     });
   }
@@ -1500,6 +1559,15 @@ router.get("/notifications", verifyToken, (req: AuthenticatedRequest, res) => {
             "Reported Issue Solved",
             `Your reported issue for ${name} (#${tag}) has been fixed by clinical maintenance crew. Tech comments: "${m.issue_description}".`,
             "info",
+            m.updated_at || m.created_at
+          );
+        } else if (m.repair_status === "awaiting_approval") {
+          addNotification(
+            `maint-awaiting-${m.id}`,
+            "maintenance_reported",
+            "Repair Awaiting Accomplishment Approval",
+            `Technician completed repairs for ${name} (#${tag}) for ₹${m.cost}. Awaiting admin sign-off approval.`,
+            "warning",
             m.updated_at || m.created_at
           );
         } else if (m.repair_status === "unrepairable") {

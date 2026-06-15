@@ -443,7 +443,7 @@ export default function App() {
       });
       
       // Automatic session login after success
-      setForgotStatus("Pass key updated! Establishing session tunnel...");
+      setForgotStatus("Pass key updated! Logging in...");
       setTimeout(async () => {
         try {
           const res = await api.post<{ token: string; user: LoggedInUser }>("/auth/login", {
@@ -577,15 +577,15 @@ export default function App() {
   const handleReportMaintenance = async (assetId: number, issue: string, assignedTo?: number) => {
     try {
       await api.post("/maintenance", { asset_id: assetId, issue_description: issue, assigned_to: assignedTo });
-      toast.success("Fault report ticket dispatched successfully.");
+      toast.success("Fault report ticket submitted successfully.");
       await fetchAssets();
     } catch (err: any) {
-      toast.error("Failed to dispatch repair ticket: " + (err.response?.data?.error || err.message));
+      toast.error("Failed to submit repair ticket: " + (err.response?.data?.error || err.message));
     }
   };
 
-  const handleUpdateMaintenance = async (id: number, status: RepairStatus, cost: number, comments?: string) => {
-    await api.put(`/maintenance/${id}`, { repair_status: status, cost, comments });
+  const handleUpdateMaintenance = async (id: number, status: RepairStatus, cost: number, comments?: string, assignedTo?: number) => {
+    await api.put(`/maintenance/${id}`, { repair_status: status, cost, comments, assigned_to: assignedTo });
     await fetchMaintenance();
   };
 
@@ -1015,7 +1015,7 @@ export default function App() {
                       disabled={isLogginIn}
                       className="w-full bg-vignanBlue hover:bg-vignanBlue-hover text-white py-3 rounded-xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer mt-5"
                     >
-                      <span>{isLogginIn ? "Establishing Session Security..." : "Establish Authoritative Tunnel"}</span>
+                      <span>{isLogginIn ? "Logging in..." : "Login"}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </form>

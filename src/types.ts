@@ -1,7 +1,17 @@
 export type UserRole = "super_admin" | "asset_manager" | "employee" | "auditor" | "maintenance_team" | "web_developer";
 export type AssetStatus = "available" | "allocated" | "maintenance" | "disposed" | "return_pending";
 export type RequestStatus = "pending" | "approved" | "rejected";
-export type RepairStatus = "reported" | "in_progress" | "resolved" | "unrepairable";
+export type RepairStatus = "reported" | "in_progress" | "awaiting_approval" | "resolved" | "unrepairable";
+
+export interface ValuationReport {
+  id: number;
+  report_date: string;
+  generated_by_id: number;
+  generated_by_name: string;
+  total_assets: number;
+  total_valuation: number;
+  total_repair_cost: number;
+}
 
 export interface LoggedInUser {
   id: number;

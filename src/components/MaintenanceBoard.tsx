@@ -1,6 +1,7 @@
 import toast from "react-hot-toast";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { MaintenanceLog, LoggedInUser, RepairStatus } from "../types";
+import api from "../api";
 import { 
   Wrench, 
   MapPin, 
@@ -21,7 +22,7 @@ interface MaintenanceBoardProps {
   logs: MaintenanceLog[];
   user: LoggedInUser;
   loading: boolean;
-  onUpdateMaintenance: (id: number, status: RepairStatus, cost: number, comments?: string) => Promise<void>;
+  onUpdateMaintenance: (id: number, status: RepairStatus, cost: number, comments?: string, assignedTo?: number) => Promise<void>;
 }
 
 export default function MaintenanceBoard({
@@ -37,7 +38,15 @@ export default function MaintenanceBoard({
   const [ticketStatus, setTicketStatus] = useState<RepairStatus>("reported");
   const [ticketCost, setTicketCost] = useState("");
   const [ticketComments, setTicketComments] = useState("");
+  const [ticketTechnicianId, setTicketTechnicianId] = useState("");
   const [isUpdatingTicket, setIsUpdatingTicket] = useState(false);
+  const [technicians, setTechnicians] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.get("/technicians")
+      .then((res) => setTechnicians(res.data))
+      .catch((err) => console.error("Failed to load technicians roster", err));
+  }, []);
 
   if (loading) {
     return (
@@ -61,6 +70,13 @@ export default function MaintenanceBoard({
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
             Resolved
+          </span>
+        );
+      case "awaiting_approval":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 animate-pulse">
+            <Clock className="w-3.5 h-3.5 text-indigo-500" />
+            Awaiting Approval
           </span>
         );
       case "unrepairable":
@@ -93,6 +109,7 @@ export default function MaintenanceBoard({
     setTicketStatus(log.repair_status);
     setTicketCost(log.cost > 0 ? String(log.cost) : "");
     setTicketComments(log.issue_description || "");
+    setTicketTechnicianId(log.assigned_to ? String(log.assigned_to) : "");
   };
 
   const handleUpdateSubmit = async (e: React.FormEvent) => {
@@ -102,7 +119,8 @@ export default function MaintenanceBoard({
     try {
       setIsUpdatingTicket(true);
       const costParsed = ticketCost ? parseFloat(ticketCost) : 0;
-      await onUpdateMaintenance(activeManageLog.id, ticketStatus, costParsed, ticketComments.trim());
+      const techIdParsed = ticketTechnicianId ? parseInt(ticketTechnicianId) : undefined;
+      await onUpdateMaintenance(activeManageLog.id, ticketStatus, costParsed, ticketComments.trim(), techIdParsed);
       setActiveManageLog(null);
     } catch (err) {
       toast.error("Failed to record maintenance resolution.");
@@ -138,6 +156,7 @@ export default function MaintenanceBoard({
             <option value="all">Display All Tickets</option>
             <option value="reported">Reported Only</option>
             <option value="in_progress">In Repair Only</option>
+            <option value="awaiting_approval">Awaiting Approval Only</option>
             <option value="resolved">Resolved Only</option>
             <option value="unrepairable">Unrepairable Only</option>
           </select>
@@ -252,9 +271,9 @@ export default function MaintenanceBoard({
             {/* Header */}
             <div className="bg-amber-700 text-white p-5 flex justify-between items-center">
               <div>
-                <h3 className="text-lg font-bold font-display flex items-center gap-1.5 animate-pulse">
+                <h3 className="text-lg font-bold font-display flex items-center gap-1.5">
                   <Settings className="w-5 h-5 text-amber-200" />
-                  Dispatch Repair Ticket
+                  Repair Board
                 </h3>
                 <p className="text-xs text-amber-100">Submit resolution logs and update component status</p>
               </div>
@@ -265,10 +284,10 @@ export default function MaintenanceBoard({
 
             {/* Form body */}
             <form onSubmit={handleUpdateSubmit} className="p-6 space-y-4">
-              <div className="bg-amber-50 p-4 border border-amber-100 rounded-lg text-xs leading-relaxed">
+              <div className="bg-amber-50 p-4 border border-amber-100 rounded-lg text-xs leading-relaxed text-slate-700">
                 <p><strong>Incriminated Component:</strong> {activeManageLog.asset_name} ({activeManageLog.asset_tag})</p>
                 <p><strong>Placement:</strong> {activeManageLog.asset_location}</p>
-                <p className="border-t border-dashed border-amber-250 pt-2 text-slate-650 font-medium">
+                <p className="border-t border-dashed border-amber-250 pt-2 mt-2 text-slate-800 font-medium">
                   <strong>Reporter Fault Context:</strong> "{activeManageLog.issue_description}"
                 </p>
               </div>
@@ -283,16 +302,36 @@ export default function MaintenanceBoard({
                 >
                   <option value="reported">Left Reported / Claimed</option>
                   <option value="in_progress">Transfer to In-Repair Schedule</option>
+                  <option value="awaiting_approval">Awaiting Approval (Technician Complete)</option>
                   <option value="resolved">Mark Successfully Resolved (Turn to Available)</option>
                   <option value="unrepairable">Deem Unrepairable (Scrap & Decommission Portfolio)</option>
                 </select>
               </div>
 
+              {/* Technician selection - Admin / Managers Only */}
+              {["super_admin", "asset_manager", "web_developer"].includes(user.role) && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Assign Technician / Engineer</label>
+                  <select 
+                    value={ticketTechnicianId}
+                    onChange={(e) => setTicketTechnicianId(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-amber-600 bg-white cursor-pointer"
+                  >
+                    <option value="">-- Leave Unassigned / Blank --</option>
+                    {technicians.map((tech) => (
+                      <option key={tech.id} value={tech.id}>
+                        {tech.name} ({tech.department || "Estate & Operations"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Cost input field */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Calculated Repair Outlays (₹) *</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-xs font-semibold text-slate-400">₹</span>
+                  <span className="absolute left-3 top-2 text-xs font-semibold text-slate-400">₹</span>
                   <input 
                     type="number" 
                     placeholder="e.g. 1500"
@@ -303,7 +342,7 @@ export default function MaintenanceBoard({
                 </div>
               </div>
 
-              {/* Technician comments */}
+              {/* Comments */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Issue Description / Resolution Note</label>
                 <textarea 
@@ -320,16 +359,16 @@ export default function MaintenanceBoard({
                 <button 
                   type="button"
                   onClick={() => setActiveManageLog(null)}
-                  className="px-4 py-2 border border-slate-200 text-slate-500 text-xs rounded-lg hover:bg-slate-50"
+                  className="px-4 py-2 border border-slate-200 text-slate-500 text-xs rounded-lg hover:bg-slate-50 cursor-pointer"
                 >
-                  Close Dispatcher
+                  Close
                 </button>
                 <button 
                   type="submit"
                   disabled={isUpdatingTicket}
                   className="px-5 py-2 bg-amber-700 hover:bg-amber-800 text-white text-xs rounded-lg font-bold shadow-xs cursor-pointer"
                 >
-                  {isUpdatingTicket ? "Updating logs..." : "Apply Diagnostic Dispatch"}
+                  {isUpdatingTicket ? "Submitting..." : "Submit"}
                 </button>
               </div>
             </form>
