@@ -25,7 +25,7 @@ const loginReq = http.request({
     const pushReq = http.request({
       host: '127.0.0.1',
       port: 3000,
-      path: '/api/dev/firebase-force-push',
+      path: '/api/dev/supabase-force-push',
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`

@@ -22,18 +22,18 @@ export default function DeveloperDesk({ user }: DeveloperDeskProps) {
   const [loading, setLoading] = useState(true);
   const [ticketToConfirmSolve, setTicketToConfirmSolve] = useState<number | null>(null);
 
-  const [firebaseConnected, setFirebaseConnected] = useState<boolean | null>(null);
+  const [supabaseConnected, setSupabaseConnected] = useState<boolean | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<any | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  const checkFirebaseStatus = async () => {
+  const checkSupabaseStatus = async () => {
     try {
-      const res = await api.get<{ connected: boolean }>("/dev/firebase-status");
-      setFirebaseConnected(res.data.connected);
+      const res = await api.get<{ connected: boolean }>("/dev/supabase-status");
+      setSupabaseConnected(res.data.connected);
     } catch (err) {
-      console.warn("Failed to check dynamic Firebase status:", err);
-      setFirebaseConnected(false);
+      console.warn("Failed to check dynamic Supabase status:", err);
+      setSupabaseConnected(false);
     }
   };
 
@@ -42,12 +42,12 @@ export default function DeveloperDesk({ user }: DeveloperDeskProps) {
       setSyncing(true);
       setSyncError(null);
       setSyncResult(null);
-      const res = await api.post("/dev/firebase-force-push");
+      const res = await api.post("/dev/supabase-force-push");
       setSyncResult(res.data);
-      alert("Success! Local asset databases, active personnel profiles, logs, and claims synced live into Firebase cloud Firestore successfully!");
+      alert("Success! Local asset databases, active personnel profiles, logs, and claims synced live into Supabase successfully!");
     } catch (err: any) {
       console.error(err);
-      setSyncError(err.response?.data?.error || "Connection or write failure to Cloud Firestore instance.");
+      setSyncError(err.response?.data?.error || "Connection or write failure to Cloud Supabase instance.");
     } finally {
       setSyncing(false);
     }
@@ -67,7 +67,7 @@ export default function DeveloperDesk({ user }: DeveloperDeskProps) {
 
   useEffect(() => {
     fetchTickets();
-    checkFirebaseStatus();
+    checkSupabaseStatus();
   }, []);
 
   const handleDeleteTicket = async (id: number) => {
@@ -216,15 +216,15 @@ export default function DeveloperDesk({ user }: DeveloperDeskProps) {
       </div>
 
 
-      {/* Firebase cloud sync utilities panel */}
+      {/* Supabase cloud sync utilities panel */}
       <div className="bg-white p-6 rounded-2xl border border-slate-150 shadow-xs space-y-4">
         <div>
           <h3 className="text-sm font-bold text-slate-700 uppercase tracking-widest block font-mono flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse inline-block"></span>
-            Firebase Live Cloud Integration Desk
+            Supabase Live Cloud Integration Desk
           </h3>
           <p className="text-xs text-slate-400 mt-1">
-            Re-synchronize standalone memory backup or seed systems with Cloud Firestore. Force propagation of users, assets, audits, logs, and billing parameters.
+            Re-synchronize standalone memory backup or seed systems with Cloud Supabase. Force propagation of users, assets, audits, logs, and billing parameters.
           </p>
         </div>
 
@@ -232,14 +232,14 @@ export default function DeveloperDesk({ user }: DeveloperDeskProps) {
           {/* Status Block */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
             <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Firebase Agent Link</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Supabase Agent Link</span>
               <div className="flex items-center gap-1.5 mt-1">
-                {firebaseConnected === null ? (
+                {supabaseConnected === null ? (
                   <span className="text-slate-400 text-xs font-semibold">Testing Link State...</span>
-                ) : firebaseConnected ? (
+                ) : supabaseConnected ? (
                   <span className="text-emerald-700 font-bold text-xs flex items-center gap-1">
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
-                    Connected to Live Cloud (Enterprise Firestore)
+                    Connected to Live Cloud (Enterprise Supabase)
                   </span>
                 ) : (
                   <span className="text-amber-700 font-bold text-xs flex items-center gap-1">
@@ -251,7 +251,7 @@ export default function DeveloperDesk({ user }: DeveloperDeskProps) {
             </div>
             
             <button
-              onClick={checkFirebaseStatus}
+              onClick={checkSupabaseStatus}
               className="text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 cursor-pointer"
             >
               Check Link
@@ -262,7 +262,7 @@ export default function DeveloperDesk({ user }: DeveloperDeskProps) {
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">State Overwrite propagation</span>
-              <p className="text-[11px] text-slate-500 mt-0.5 font-medium">Re-push full local state tables directly to Firebase</p>
+              <p className="text-[11px] text-slate-500 mt-0.5 font-medium">Re-push full local state tables directly to Supabase</p>
             </div>
 
             <button
@@ -286,7 +286,7 @@ export default function DeveloperDesk({ user }: DeveloperDeskProps) {
           <div className="p-4 bg-emerald-50 border border-emerald-150 rounded-xl space-y-2 text-xs animate-fade-in animate-slide-up">
             <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-xs">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Database synced completely to Cloud Firestore!</span>
+              <span>Database synced completely to Cloud Supabase!</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 pt-2 text-[11px] text-emerald-700 font-mono">
               <div className="bg-white/60 p-1.5 rounded text-center border border-emerald-100">

@@ -91,6 +91,8 @@ export default function UserManagement({
     switch (role) {
       case "super_admin":
         return "bg-rose-50 text-rose-700 border border-rose-200";
+      case "web_developer":
+        return "bg-indigo-50 text-indigo-700 border border-indigo-200";
       case "asset_manager":
         return "bg-yellow-50 text-yellow-700 border border-yellow-200";
       case "maintenance_team":
@@ -173,6 +175,7 @@ export default function UserManagement({
             >
               <option value="all">All Roles</option>
               <option value="super_admin">Admin</option>
+              <option value="web_developer">Web Developer</option>
               <option value="asset_manager">Asset Manager</option>
               <option value="employee">Employee</option>
               <option value="auditor">Auditor</option>
@@ -478,6 +481,7 @@ export default function UserManagement({
                   <option value="maintenance_team">Maintenance Crew</option>
                   <option value="auditor">Auditor (Read-Only)</option>
                   <option value="super_admin">Admin</option>
+                  <option value="web_developer">Web Developer</option>
                 </select>
               </div>
 

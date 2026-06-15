@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import api from "./api";
 import { 
   LoggedInUser, 
@@ -37,6 +38,15 @@ import {
   Send,
   CheckCircle2
 } from "lucide-react";
+
+let supabaseClientInstance: SupabaseClient | null = null;
+
+function getClientSupabase(config: { supabaseUrl: string; supabaseAnonKey: string }) {
+  if (!supabaseClientInstance) {
+    supabaseClientInstance = createClient(config.supabaseUrl, config.supabaseAnonKey);
+  }
+  return supabaseClientInstance;
+}
 
 export default function App() {
   // Authentication states
@@ -147,26 +157,121 @@ export default function App() {
     };
   }, []);
 
-  // 2. Refresh data queries when activeTab is changed
+  // 2. Real-time Supabase Postgres changes listeners replacement
+  useEffect(() => {
+    if (!user) return;
+
+    let cleanupChannel = () => {};
+
+    const setupListeners = async () => {
+      try {
+        const res = await api.get("/supabase-config");
+        const config = res.data;
+        const supabase = getClientSupabase(config);
+
+        setIsAssetsLoading(true);
+        setIsUsersLoading(true);
+        setIsRequestsLoading(true);
+
+        const fetchAll = () => {
+          fetchAssets();
+          fetchRequests();
+          if (user.role === "super_admin" || user.role === "web_developer") {
+            fetchUsers();
+          }
+        };
+
+        // Do initial fetch
+        fetchAll();
+
+        // Subscribing to public schema changes for the specified tables
+        const channel = supabase.channel('schema-db-changes')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'assets' },
+            (payload) => {
+              console.log("[VIIT AMS] Real-time asset change:", payload);
+              fetchAssets(); // re-fetch to keep it simple and perfectly sorted
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'users' },
+            (payload) => {
+              console.log("[VIIT AMS] Real-time user change:", payload);
+              if (user.role === "super_admin" || user.role === "web_developer") fetchUsers();
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'requests' },
+            (payload) => {
+              console.log("[VIIT AMS] Real-time requests change:", payload);
+              fetchRequests();
+            }
+          )
+          .subscribe((status, err) => {
+            if (status === 'SUBSCRIBED') {
+              console.log("[VIIT AMS] Successfully subscribed to Supabase Realtime channel.")
+            } else if (status === 'CHANNEL_ERROR') {
+              console.error("[VIIT AMS] Supabase channel error:", err);
+            }
+          });
+
+        cleanupChannel = () => {
+          supabase.removeChannel(channel);
+        };
+
+      } catch (err) {
+        console.warn("[VIIT AMS] Standalone backup fallback or missing Config for live Supabase. Using manual pulls:", err);
+        fetchAssets();
+        fetchRequests();
+        if (user.role === "super_admin" || user.role === "web_developer") {
+          fetchUsers();
+        }
+      }
+    };
+
+    setupListeners();
+
+    return () => {
+      cleanupChannel();
+    };
+  }, [user]);
+
+  // 2b. Pull manual statistics and repair states updates on mount & navigation shifts
   useEffect(() => {
     if (!user) return;
 
     if (activeTab === "dashboard") {
       fetchStats();
-      fetchRequests();
-      fetchAssets();
       fetchMaintenance();
-    } else if (activeTab === "assets") {
-      fetchAssets();
-      fetchRequests();
-    } else if (activeTab === "requests") {
-      fetchRequests();
     } else if (activeTab === "maintenance") {
       fetchMaintenance();
-    } else if (activeTab === "users" && (user.role === "super_admin" || user.role === "web_developer")) {
-      fetchUsers();
     }
   }, [activeTab, user]);
+
+  // Dynamic computed requests combining referenced user and asset info real-time
+  const detailedRequests = useMemo(() => {
+    let filtered = requests;
+    if (user && user.role === "employee") {
+      filtered = requests.filter((r) => r.user_id === user.id);
+    }
+    return filtered.map((r) => {
+      const asset = assets.find((a) => a.id === r.asset_id);
+      const employee = users.find((u) => u.id === r.user_id);
+      const processedBy = r.processed_by ? users.find((u) => u.id === r.processed_by) : undefined;
+      
+      return {
+        ...r,
+        asset_name: asset ? asset.name : r.asset_name || "Unknown Asset",
+        asset_tag: asset ? asset.asset_tag : r.asset_tag || "N/A",
+        user_name: employee ? employee.name : r.user_name || "Unknown User",
+        user_email: employee ? employee.email : r.user_email || "N/A",
+        processed_by_name: processedBy ? processedBy.name : r.processed_by_name
+      };
+    });
+  }, [requests, assets, users, user]);
 
   // Global pullers
   const fetchStats = async () => {
@@ -634,7 +739,7 @@ export default function App() {
                 stats={stats} 
                 user={user} 
                 loading={isStatsLoading}
-                requests={requests}
+                requests={detailedRequests}
                 assets={assets}
                 maintenanceLogs={maintenanceLogs}
                 onActionRequest={handleActionRequest}
@@ -655,13 +760,13 @@ export default function App() {
                 onSubmitRequest={handleCreateRequest}
                 onSubmitMaintenance={handleReportMaintenance}
                 onReturnAsset={handleReturnAsset}
-                requests={requests}
+                requests={detailedRequests}
               />
             )}
             
             {activeTab === "requests" && (
               <AllocationRequests 
-                requests={requests} 
+                requests={detailedRequests} 
                 user={user} 
                 loading={isRequestsLoading}
                 onActionRequest={handleActionRequest}

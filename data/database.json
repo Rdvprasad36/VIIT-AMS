@@ -1,127 +1,265 @@
 {
   "users": [
     {
-      "department": "System Cell",
-      "password_plain": "password123",
       "id": 1,
       "name": "AdminSystemCell",
       "email": "admin@vignaniit.edu.in",
-      "password_hash": "$2b$10$Rpopas8t3LjoYR6HECYwzer2nqu0VW3GbQ/kaSvqM1Ju1ZDuoEB6q",
+      "password_hash": "$2b$10$w0cU36RCesKRXd/HIOsLW.7nbKxdX1wQcOfIVu7AFdaFJjPfZytSm",
+      "password_plain": "password123",
       "role": "super_admin",
-      "created_at": "2026-01-10T00:00:00.000Z"
+      "department": "System Cell",
+      "created_at": "2026-01-10T00:00:00.000Z",
+      "employee_type": null,
+      "read_notifications": null,
+      "reset_code": null,
+      "is_trial": null,
+      "is_disabled": null,
+      "phone": "+91 9323393224"
     },
     {
-      "password_hash": "$2b$10$Rpopas8t3LjoYR6HECYwzeoacNYwQT08rWAnvBd/NuLsxZttCtXXK",
+      "id": 2,
       "name": "Web Support Team Dev",
       "email": "rdvprasad36@gmail.com",
-      "created_at": "2026-06-06T00:00:00.000Z",
+      "password_hash": "$2b$10$w0cU36RCesKRXd/HIOsLW.QhTSwl3unAwSjQkM3afaCsZnDzD/FXe",
+      "password_plain": "020306",
       "role": "web_developer",
       "department": "Website Support Team",
-      "id": 2,
-      "password_plain": "020306"
-    },
-    {
-      "password_plain": "password123",
-      "id": 7,
-      "employee_type": "other",
-      "created_at": "2026-06-11T00:00:00.000Z",
-      "department": "Administration Office",
-      "role": "super_admin",
-      "name": "AdminSystemCell",
-      "email": "admin@vignaniit.edu.in",
-      "password_hash": "$2b$10$n0ou4esUS6pw1.ky4nOiWO3HhX0QWuF.PBS//7amFLoTJ4GGSXV/O"
-    },
-    {
-      "created_at": "2026-06-11T00:00:00.000Z",
-      "id": 8,
-      "password_plain": "password123",
-      "employee_type": "cse",
-      "role": "employee",
-      "password_hash": "$2b$10$FkSQ3955PS7IJZsFqBSh5.bpHRvbyhXAV.GCAmCK.QKYn/k0RngSC",
-      "email": "testempe@vignaniit.edu.in",
-      "name": "test emp",
-      "department": "Administration Office"
-    },
-    {
-      "id": 9,
-      "password_plain": "password123",
-      "employee_type": "other",
-      "created_at": "2026-06-11T00:00:00.000Z",
-      "department": "Administration Office",
-      "role": "asset_manager",
-      "password_hash": "$2b$10$FkSQ3955PS7IJZsFqBSh5.bpHRvbyhXAV.GCAmCK.QKYn/k0RngSC",
-      "name": "test audit",
-      "email": "testauditor@vignaniit.edu.in"
-    },
-    {
-      "id": 10,
-      "password_plain": "password123",
-      "employee_type": "other",
-      "created_at": "2026-06-11T00:00:00.000Z",
-      "department": "Administration Office",
-      "role": "asset_manager",
-      "password_hash": "$2b$10$FkSQ3955PS7IJZsFqBSh5.bpHRvbyhXAV.GCAmCK.QKYn/k0RngSC",
-      "email": "testam@vignaniit.edu.in",
-      "name": "testam"
-    },
-    {
-      "department": "Administration Office",
-      "email": "testm@vignaniit.edu.in",
-      "name": "testmaintance",
-      "password_hash": "$2b$10$FkSQ3955PS7IJZsFqBSh5.bpHRvbyhXAV.GCAmCK.QKYn/k0RngSC",
-      "role": "maintenance_team",
-      "employee_type": "other",
-      "password_plain": "password123",
-      "id": 11,
-      "created_at": "2026-06-11T00:00:00.000Z"
-    },
-    {
-      "created_at": "2026-06-11T00:00:00.000Z",
-      "employee_type": "cse",
-      "password_plain": "password123",
-      "id": 12,
-      "name": "test emp",
-      "email": "testempe@vignaniit.edu",
-      "password_hash": "$2b$10$jBMH7eaQDucriV1LqlzWu.DYPbxQVrMJxObpSABRUs.tNehPezmEK",
-      "role": "employee",
-      "department": "Administration Office"
+      "created_at": "2026-06-06T00:00:00.000Z",
+      "employee_type": null,
+      "read_notifications": null,
+      "reset_code": null,
+      "is_trial": null,
+      "is_disabled": null,
+      "phone": "+91 9527739772"
     }
   ],
   "assets": [
     {
       "id": 1,
-      "asset_tag": "VIIT-IT-0001",
-      "name": "Dell OptiPlex 7090 Tower",
-      "category": "IT Hardware",
+      "asset_tag": "VIIT-IT-2026-001",
+      "name": "Dell Optiplex 7090 Desktop",
+      "category": "Electronics",
       "status": "available",
       "purchase_date": "2026-01-15",
-      "cost": 75000,
-      "serial_number": "DL-OPT-7090-X1",
-      "location": "Lab 3",
-      "qr_code": "VIIT-IT-0001",
-      "created_at": "2026-06-12T08:38:13.455Z"
-    },
-    {
-      "id": 2,
-      "asset_tag": "VIIT-IT-0002",
-      "name": "Logitech MX Master 3",
-      "category": "IT Hardware",
-      "status": "available",
-      "purchase_date": "2026-02-15",
-      "cost": 8500,
-      "serial_number": "LG-MX3-W2",
-      "location": "Lab 3",
-      "qr_code": "VIIT-IT-0002",
-      "created_at": "2026-06-12T08:38:13.457Z"
+      "cost": 85000,
+      "serial_number": "DELL-OPT-7090-001",
+      "location": "Main Block, CS Lab 1",
+      "qr_code": "QR-VIIT-IT-2026-001",
+      "created_at": "2026-06-15T07:11:47.994Z",
+      "warranty_expiration": null,
+      "is_trial": null,
+      "allocated_to": null,
+      "allocated_to_id": null
     }
   ],
   "requests": [],
   "maintenance_logs": [],
-  "audits": [],
+  "audits": [
+    {
+      "id": 20,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 11,
+      "details": "Permanently revoked security profile for user: testmaintance (testm@vignaniit.edu.in)",
+      "performed_at": "2026-06-15T07:39:52.963Z"
+    },
+    {
+      "id": 19,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 10,
+      "details": "Permanently revoked security profile for user: testam (testam@vignaniit.edu.in)",
+      "performed_at": "2026-06-15T07:39:51.952Z"
+    },
+    {
+      "id": 18,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 9,
+      "details": "Permanently revoked security profile for user: test audit (testauditor@vignaniit.edu.in)",
+      "performed_at": "2026-06-15T07:39:50.931Z"
+    },
+    {
+      "id": 17,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 8,
+      "details": "Permanently revoked security profile for user: test emp (testempe@vignaniit.edu)",
+      "performed_at": "2026-06-15T07:39:49.932Z"
+    },
+    {
+      "id": 16,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_LOGIN",
+      "entity_table": "users",
+      "entity_id": 1,
+      "details": "User verified successfully via JWT.",
+      "performed_at": "2026-06-15T07:39:49.213Z"
+    },
+    {
+      "id": 15,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 9,
+      "details": "Permanently revoked security profile for user: test audit (testauditor@vignaniit.edu.in)",
+      "performed_at": "2026-06-15T07:32:44.797Z"
+    },
+    {
+      "id": 14,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 8,
+      "details": "Permanently revoked security profile for user: test emp (testempe@vignaniit.edu)",
+      "performed_at": "2026-06-15T07:32:38.344Z"
+    },
+    {
+      "id": 13,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 10,
+      "details": "Permanently revoked security profile for user: testam (testam@vignaniit.edu.in)",
+      "performed_at": "2026-06-15T07:32:32.907Z"
+    },
+    {
+      "id": 12,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 9,
+      "details": "Permanently revoked security profile for user: test audit (testauditor@vignaniit.edu.in)",
+      "performed_at": "2026-06-15T07:32:26.432Z"
+    },
+    {
+      "id": 11,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 8,
+      "details": "Permanently revoked security profile for user: test emp (testempe@vignaniit.edu)",
+      "performed_at": "2026-06-15T07:32:20.912Z"
+    },
+    {
+      "id": 10,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 8,
+      "details": "Permanently revoked security profile for user: test emp (testempe@vignaniit.edu)",
+      "performed_at": "2026-06-15T07:12:30.922Z"
+    },
+    {
+      "id": 9,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 10,
+      "details": "Permanently revoked security profile for user: testam (testam@vignaniit.edu.in)",
+      "performed_at": "2026-06-15T07:12:25.387Z"
+    },
+    {
+      "id": 8,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 9,
+      "details": "Permanently revoked security profile for user: test audit (testauditor@vignaniit.edu.in)",
+      "performed_at": "2026-06-15T07:12:06.541Z"
+    },
+    {
+      "id": 7,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 10,
+      "details": "Permanently revoked security profile for user: testam (testam@vignaniit.edu.in)",
+      "performed_at": "2026-06-15T07:12:00.075Z"
+    },
+    {
+      "id": 6,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 8,
+      "details": "Permanently revoked security profile for user: test emp (testempe@vignaniit.edu)",
+      "performed_at": "2026-06-15T07:11:54.696Z"
+    },
+    {
+      "id": 5,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 9,
+      "details": "Permanently revoked security profile for user: test audit (testauditor@vignaniit.edu.in)",
+      "performed_at": "2026-06-15T07:11:50.934Z"
+    },
+    {
+      "id": 4,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 9,
+      "details": "Permanently revoked security profile for user: test audit (testauditor@vignaniit.edu.in)",
+      "performed_at": "2026-06-15T07:11:47.898Z"
+    },
+    {
+      "id": 3,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_DELETED",
+      "entity_table": "users",
+      "entity_id": 8,
+      "details": "Permanently revoked security profile for user: test emp (testempe@vignaniit.edu)",
+      "performed_at": "2026-06-15T07:11:43.167Z"
+    },
+    {
+      "id": 2,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "USER_LOGIN",
+      "entity_table": "users",
+      "entity_id": 1,
+      "details": "User verified successfully via JWT.",
+      "performed_at": "2026-06-15T07:11:11.435Z"
+    },
+    {
+      "id": 1,
+      "user_id": 1,
+      "user_name": "AdminSystemCell",
+      "action_type": "SYSTEM_INITIALIZATION",
+      "entity_table": "system",
+      "entity_id": null,
+      "details": "System successfully initialized. Clean database environment created by Vignan System Cell.",
+      "performed_at": "2026-06-04T12:00:00.000Z"
+    }
+  ],
   "suggestions": [],
   "budgets": {
-    "cumulativeOutlaysOverride": null,
-    "grossCapitalValuationOverride": null
-  },
-  "utilization_reports": []
+    "id": "config",
+    "grossCapitalValuationOverride": null,
+    "cumulativeOutlaysOverride": null
+  }
 }

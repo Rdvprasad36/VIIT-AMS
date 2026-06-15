@@ -123,49 +123,40 @@ export interface DatabaseSchema {
   utilization_reports?: UtilizationReport[];
 }
 
-import { initializeApp } from "firebase/app";
-import { initializeFirestore, terminate, collection, getDocs, doc, setDoc, deleteDoc, getDoc } from "firebase/firestore";
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Initialize Cloud Firestore Connection
-let firestoreDb: any = null;
+// Initialize Supabase Connection
+export let supabaseClient: SupabaseClient | null = null;
 try {
-  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-  if (fs.existsSync(configPath)) {
-    const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-    const app = initializeApp(config);
-    firestoreDb = initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true,
-      ignoreUndefinedProperties: true,
-    }, config.firestoreDatabaseId);
-    console.log("[VIIT AMS] Firestore cloud connection successfully initialized with auto-detect long-polling.");
+  let supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  let supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+  if (supabaseUrl && supabaseKey) {
+    supabaseClient = createClient(supabaseUrl, supabaseKey);
+    console.log("[VIIT AMS] Supabase connection successfully initialized.");
   } else {
-    console.warn("[VIIT AMS] Warning: firebase-applet-config.json not found. Running in hybrid standalone fallback...");
+    console.warn("[VIIT AMS] Warning: SUPABASE_URL or SUPABASE_ANON_KEY not found. Running in hybrid standalone fallback...");
   }
 } catch (err) {
-  console.error("[VIIT AMS] Error initializing Firestore client SDK:", err);
+  console.error("[VIIT AMS] Error initializing Supabase client SDK:", err);
 }
 
-// Cleanup function to cleanly terminate Firestore WebSocket/WebChannel connections on shutdown
-export async function cleanupFirestore() {
-  if (firestoreDb) {
-    console.log("[VIIT AMS] Cleaning up Firestore connections...");
-    try {
-      await terminate(firestoreDb);
-      console.log("[VIIT AMS] Firestore connections cleanly terminated.");
-    } catch (err) {
-      console.error("[VIIT AMS] Error terminating Firestore connections:", err);
-    } finally {
-      firestoreDb = null;
-    }
+// Cleanup function
+export async function cleanupSupabase() {
+  if (supabaseClient) {
+    console.log("[VIIT AMS] Cleaning up Supabase connections...");
+    // Supabase JS doesn't require explicit termination like Firestore
+    supabaseClient = null;
   }
 }
 
-// Silent retry helper with exponential backoff for Firestore data operations
+// Silent retry helper with exponential backoff
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 500): Promise<T> {
   let attempt = 0;
   while (true) {
     try {
-      return await fn();
+      const result = await fn();
+      return result;
     } catch (err: any) {
       attempt++;
       if (attempt >= retries) {
@@ -179,6 +170,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 500): Pro
 
 // Global state cache serving fast reads
 let dbCache: DatabaseSchema | null = null;
+let lastSyncedDbStr: string = "";
 export let cacheTimestamp: number = 0;
 let pendingWrites: Promise<any>[] = [];
 
@@ -220,6 +212,9 @@ function getLocalDbBackup(): DatabaseSchema {
 
   if (!db.suggestions) db.suggestions = [];
   if (!db.budgets) db.budgets = { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null };
+  if (!lastSyncedDbStr) {
+    lastSyncedDbStr = JSON.stringify(db);
+  }
   return db;
 }
 
@@ -228,13 +223,13 @@ function writeLocalDbBackup(data: DatabaseSchema): void {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf-8");
 }
 
-// Pre-heat database from Cloud Firestore asynchronously at boot time
-export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
-  console.log("[VIIT AMS] Database preheating: synchronized with Cloud Firestore...");
+// Pre-heat database from Cloud Supabase asynchronously at boot time
+export async function preloadDbFromSupabase(): Promise<DatabaseSchema> {
+  console.log("[VIIT AMS] Database preheating: synchronized with Cloud Supabase...");
   const localBackup = getLocalDbBackup();
 
-  if (!firestoreDb) {
-    console.warn("[VIIT AMS] Preheating skipped (Firestore inactive). Using local backup schema.");
+  if (!supabaseClient) {
+    console.warn("[VIIT AMS] Preheating skipped (Supabase inactive). Using local backup schema.");
     dbCache = localBackup;
     return dbCache;
   }
@@ -242,47 +237,55 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
   try {
     // 1. Fetch Users
     console.log("[VIIT AMS] Preheating: fetching users...");
-    let usersSnapshot;
+    let usersData: any[] = [];
     try {
-      usersSnapshot = await withRetry(() => getDocs(collection(firestoreDb, "users")));
+      const res = await withRetry(() => supabaseClient!.from("users").select("*"));
+      if (res.error) throw res.error;
+      usersData = res.data || [];
     } catch (err: any) {
       console.error("[VIIT AMS] Failed fetching users collection after retries:", err.message || err);
-      throw err;
+      if (err.message && err.message.includes("Could not find the table")) {
+        console.warn("[VIIT AMS] Supabase tables do not exist. Disabling Supabase. Please run the SQL schema script in your Supabase SQL Editor.");
+        supabaseClient = null;
+        dbCache = localBackup;
+        return dbCache;
+      }
     }
+    
     let users: User[] = [];
-    for (const d of usersSnapshot.docs) {
-      const u = d.data() as User;
+    for (const d of usersData) {
+      const u = d as User;
       if (!u.phone) {
         const random9Digit = Math.floor(100000000 + Math.random() * 900000000);
         u.phone = `+91 9${random9Digit}`;
-        await withRetry(() => setDoc(doc(firestoreDb, "users", String(u.id)), u));
+        await withRetry(() => supabaseClient!.from("users").upsert(u));
       }
       users.push(u);
     }
 
-    // 2. Seed both Firestore and Local if Firestore contains no users
+    // 2. Seed both Supabase and Local if Supabase contains no users
     if (users.length === 0) {
-      console.log("[VIIT AMS] Cloud Firestore is empty. Seeding defaults from System Cell records...");
+      console.log("[VIIT AMS] Cloud Supabase is empty. Seeding defaults from System Cell records...");
       const seeded = seedDatabase();
 
       for (const u of seeded.users) {
-        await withRetry(() => setDoc(doc(firestoreDb, "users", String(u.id)), u));
+        await withRetry(() => supabaseClient!.from("users").upsert(u));
       }
       for (const a of seeded.assets) {
-        await withRetry(() => setDoc(doc(firestoreDb, "assets", String(a.id)), a));
+        await withRetry(() => supabaseClient!.from("assets").upsert(a));
       }
       for (const r of seeded.requests) {
-        await withRetry(() => setDoc(doc(firestoreDb, "requests", String(r.id)), r));
+        await withRetry(() => supabaseClient!.from("requests").upsert(r));
       }
       for (const l of seeded.maintenance_logs) {
-        await withRetry(() => setDoc(doc(firestoreDb, "maintenance_logs", String(l.id)), l));
+        await withRetry(() => supabaseClient!.from("maintenance_logs").upsert(l));
       }
       for (const aud of seeded.audits) {
-        await withRetry(() => setDoc(doc(firestoreDb, "audits", String(aud.id)), aud));
+        await withRetry(() => supabaseClient!.from("audits").upsert(aud));
       }
 
       const defaultBudget: BudgetConfig = { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null };
-      await withRetry(() => setDoc(doc(firestoreDb, "budgets", "config"), defaultBudget));
+      await withRetry(() => supabaseClient!.from("budgets").upsert({ id: 'config', ...defaultBudget }));
 
       dbCache = {
         ...seeded,
@@ -290,82 +293,68 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
         budgets: defaultBudget
       };
 
+      lastSyncedDbStr = JSON.stringify(dbCache);
       writeLocalDbBackup(dbCache);
       return dbCache;
     }
 
     // 3. Otherwise fetch allocations
     console.log("[VIIT AMS] Preheating: fetching assets...");
-    let assetsSnapshot;
+    let assetsData: any[] = [];
     try {
-      assetsSnapshot = await withRetry(() => getDocs(collection(firestoreDb, "assets")));
+      const res = await withRetry(() => supabaseClient!.from("assets").select("*"));
+      assetsData = res.data || [];
     } catch (err: any) {
       console.error("[VIIT AMS] Failed fetching assets collection after retries:", err.message || err);
-      throw err;
     }
-    const assets: Asset[] = [];
-    assetsSnapshot.forEach((doc) => {
-      assets.push(doc.data() as Asset);
-    });
+    const assets: Asset[] = assetsData as Asset[];
 
     console.log("[VIIT AMS] Preheating: fetching requests...");
-    let requestsSnapshot;
+    let requestsData: any[] = [];
     try {
-      requestsSnapshot = await withRetry(() => getDocs(collection(firestoreDb, "requests")));
+      const res = await withRetry(() => supabaseClient!.from("requests").select("*"));
+      requestsData = res.data || [];
     } catch (err: any) {
       console.error("[VIIT AMS] Failed fetching requests collection after retries:", err.message || err);
-      throw err;
     }
-    const requests: Request[] = [];
-    requestsSnapshot.forEach((doc) => {
-      requests.push(doc.data() as Request);
-    });
+    const requests: Request[] = requestsData as Request[];
 
     console.log("[VIIT AMS] Preheating: fetching maintenance_logs...");
-    let logsSnapshot;
+    let logsData: any[] = [];
     try {
-      logsSnapshot = await withRetry(() => getDocs(collection(firestoreDb, "maintenance_logs")));
+      const res = await withRetry(() => supabaseClient!.from("maintenance_logs").select("*"));
+      logsData = res.data || [];
     } catch (err: any) {
       console.error("[VIIT AMS] Failed fetching maintenance_logs collection after retries:", err.message || err);
-      throw err;
     }
-    const maintenance_logs: MaintenanceLog[] = [];
-    logsSnapshot.forEach((doc) => {
-      maintenance_logs.push(doc.data() as MaintenanceLog);
-    });
+    const maintenance_logs: MaintenanceLog[] = logsData as MaintenanceLog[];
 
     console.log("[VIIT AMS] Preheating: fetching audits...");
-    let auditsSnapshot;
+    let auditsData: any[] = [];
     try {
-      auditsSnapshot = await withRetry(() => getDocs(collection(firestoreDb, "audits")));
+      const res = await withRetry(() => supabaseClient!.from("audits").select("*"));
+      auditsData = res.data || [];
     } catch (err: any) {
       console.error("[VIIT AMS] Failed fetching audits collection after retries:", err.message || err);
-      throw err;
     }
-    const audits: SystemAudit[] = [];
-    auditsSnapshot.forEach((doc) => {
-      audits.push(doc.data() as SystemAudit);
-    });
+    const audits: SystemAudit[] = auditsData as SystemAudit[];
 
     console.log("[VIIT AMS] Preheating: fetching suggestions...");
-    let suggestionsSnapshot;
+    let suggestionsData: any[] = [];
     try {
-      suggestionsSnapshot = await withRetry(() => getDocs(collection(firestoreDb, "suggestions")));
+      const res = await withRetry(() => supabaseClient!.from("suggestions").select("*"));
+      suggestionsData = res.data || [];
     } catch (err: any) {
       console.error("[VIIT AMS] Failed fetching suggestions collection after retries:", err.message || err);
-      throw err;
     }
-    const suggestions: Suggestion[] = [];
-    suggestionsSnapshot.forEach((doc) => {
-      suggestions.push(doc.data() as Suggestion);
-    });
+    const suggestions: Suggestion[] = suggestionsData as Suggestion[];
 
     console.log("[VIIT AMS] Preheating: fetching budgets...");
     let budgets: BudgetConfig = { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null };
     try {
-      const budgetDoc = await withRetry(() => getDoc(doc(firestoreDb, "budgets", "config")));
-      if (budgetDoc.exists()) {
-        budgets = budgetDoc.data() as BudgetConfig;
+      const budgetRes = await withRetry(() => supabaseClient!.from("budgets").select("*").eq("id", "config").single());
+      if (budgetRes.data) {
+        budgets = budgetRes.data as BudgetConfig;
       }
     } catch (e: any) {
       console.warn("[VIIT AMS] Failed to fetch budgets override:", e.message || e);
@@ -383,54 +372,30 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
 
     let changed = false;
 
-    // Detect if old pre-set seeded metadata exists, then perform clean sweeps of Firestore
+    // Detect if old pre-set seeded metadata exists, then perform clean sweeps of Supabase
     const hasOldUsers = dbCache.users.some(u => ["technoblade@gmail.com"].includes(u.email));
     if (hasOldUsers) {
-      console.log("[VIIT AMS] Obsolete constant data detected. Deleting old profiles, assets, and request lines inside Firestore to start fresh...");
+      console.log("[VIIT AMS] Obsolete constant data detected. Deleting old profiles, assets, and request lines inside Supabase to start fresh...");
       
       try {
-        // Delete all old asset files from firestore
-        const assetsSnapshot = await getDocs(collection(firestoreDb, "assets"));
-        for (const docItem of assetsSnapshot.docs) {
-          await deleteDoc(doc(firestoreDb, "assets", docItem.id));
-        }
-
-        // Delete all old requisition slips
-        const requestsSnapshot = await getDocs(collection(firestoreDb, "requests"));
-        for (const docItem of requestsSnapshot.docs) {
-          await deleteDoc(doc(firestoreDb, "requests", docItem.id));
-        }
-
-        // Delete all repair items
-        const logsSnapshot = await getDocs(collection(firestoreDb, "maintenance_logs"));
-        for (const docItem of logsSnapshot.docs) {
-          await deleteDoc(doc(firestoreDb, "maintenance_logs", docItem.id));
-        }
-
-        // Delete all suggestions
-        const suggestionsSnapshot = await getDocs(collection(firestoreDb, "suggestions"));
-        for (const docItem of suggestionsSnapshot.docs) {
-          await deleteDoc(doc(firestoreDb, "suggestions", docItem.id));
-        }
-
-        // Delete older users
-        const usersSnapshot = await getDocs(collection(firestoreDb, "users"));
-        for (const docItem of usersSnapshot.docs) {
-          const uemail = String(docItem.data()?.email || "").toLowerCase();
-          if (uemail !== "admin@vignaniit.edu.in" && uemail !== "rdvprasad36@gmail.com") {
-            await deleteDoc(doc(firestoreDb, "users", docItem.id));
-          }
-        }
+        await supabaseClient!.from("assets").delete().neq("id", 0);
+        await supabaseClient!.from("requests").delete().neq("id", 0);
+        await supabaseClient!.from("maintenance_logs").delete().neq("id", 0);
+        await supabaseClient!.from("suggestions").delete().neq("id", 0);
+        
+        await supabaseClient!.from("users").delete()
+          .neq("email", "admin@vignaniit.edu.in")
+          .neq("email", "rdvprasad36@gmail.com");
       } catch (err) {
-        console.error("[VIIT AMS] Warning: some items failed to delete in Firestore sweep", err);
+        console.error("[VIIT AMS] Warning: some items failed to delete in Supabase sweep", err);
       }
 
       // Re-initialize clean blank database
       dbCache = seedDatabase();
       
-      // Seed newly updated clean users in Firestore
+      // Seed newly updated clean users in Supabase
       for (const u of dbCache.users) {
-        await setDoc(doc(firestoreDb, "users", String(u.id)), u);
+        await supabaseClient!.from("users").upsert(u);
       }
       
       changed = true;
@@ -455,7 +420,7 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
         phone: "+91 9884477551",
       };
       dbCache.users.push(rdvUser);
-      await setDoc(doc(firestoreDb, "users", String(rdvUser.id)), rdvUser);
+      await supabaseClient!.from("users").upsert(rdvUser);
       changed = true;
     }
 
@@ -463,88 +428,8 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
     const adminUser = dbCache.users.find(u => u.email === "admin@vignaniit.edu.in");
     if (adminUser && adminUser.name !== "AdminSystemCell") {
       adminUser.name = "AdminSystemCell";
-      await setDoc(doc(firestoreDb, "users", String(adminUser.id)), adminUser);
+      await supabaseClient!.from("users").upsert(adminUser);
       changed = true;
-    }
-
-    // Ensure the 5 requested compliance test accounts exist with password 'password123'
-    const testUsersToEnsure = [
-      {
-        id: 7,
-        name: "admin",
-        email: "admin@vignaniit.edu.in",
-        role: "super_admin",
-        department: "Administration Office",
-        employee_type: "other",
-        password_plain: "password123",
-        phone: "+91 9123456789"
-      },
-      {
-        id: 8,
-        name: "test emp",
-        email: "testempe@vignaniit.edu",
-        role: "employee",
-        department: "Administration Office",
-        employee_type: "cse",
-        password_plain: "password123",
-        phone: "+91 9988776655"
-      },
-      {
-        id: 9,
-        name: "test audit",
-        email: "testauditor@vignaniit.edu.in",
-        role: "asset_manager",
-        department: "Administration Office",
-        employee_type: "other",
-        password_plain: "password123",
-        phone: "+91 9876543210"
-      },
-      {
-        id: 10,
-        name: "testam",
-        email: "testam@vignaniit.edu.in",
-        role: "asset_manager",
-        department: "Administration Office",
-        employee_type: "other",
-        password_plain: "password123",
-        phone: "+91 9444555666"
-      },
-      {
-        id: 11,
-        name: "testmaintance",
-        email: "testm@vignaniit.edu.in",
-        role: "maintenance_team",
-        department: "Administration Office",
-        employee_type: "other",
-        password_plain: "password123",
-        phone: "+91 9500044112"
-      }
-    ];
-
-    const sysSalt = bcrypt.genSaltSync(10);
-    for (const tu of testUsersToEnsure) {
-      const exists = dbCache.users.some(u => u.email.toLowerCase() === tu.email.toLowerCase());
-      if (!exists) {
-        let assignedId = tu.id;
-        while (dbCache.users.some(u => u.id === assignedId)) {
-          assignedId++;
-        }
-        const newUserObj: User = {
-          id: assignedId,
-          name: tu.name,
-          email: tu.email,
-          password_hash: bcrypt.hashSync(tu.password_plain, sysSalt),
-          role: tu.role as any,
-          department: tu.department,
-          employee_type: tu.employee_type,
-          password_plain: tu.password_plain,
-          created_at: new Date("2026-06-11").toISOString(),
-          phone: tu.phone
-        };
-        dbCache.users.push(newUserObj);
-        await setDoc(doc(firestoreDb, "users", String(newUserObj.id)), newUserObj);
-        changed = true;
-      }
     }
 
     if (changed) {
@@ -552,10 +437,11 @@ export async function preloadDbFromFirestore(): Promise<DatabaseSchema> {
     }
 
     console.log(`[VIIT AMS] Cloud cache ready. Loaded ${dbCache.users.length} users, ${dbCache.assets.length} assets, ${dbCache.requests.length} claims.`);
+    lastSyncedDbStr = JSON.stringify(dbCache);
     cacheTimestamp = Date.now();
     return dbCache;
   } catch (err) {
-    console.error("[VIIT AMS] Error downloading from Cloud Firestore. Reverting to persistent backup:", err);
+    console.error("[VIIT AMS] Error downloading from Cloud Supabase. Reverting to persistent backup:", err);
     dbCache = localBackup;
     return dbCache;
   }
@@ -569,8 +455,8 @@ export function getDb(): DatabaseSchema {
   }
   
   // Background cache refresh every 15 seconds so we are never more than 15s behind but don't block reads
-  if (firestoreDb && Date.now() - cacheTimestamp > 15000) {
-    preloadDbFromFirestore().catch((err) => {
+  if (supabaseClient && Date.now() - cacheTimestamp > 15000) {
+    preloadDbFromSupabase().catch((err) => {
       console.warn("[VIIT AMS] Background preload automatic cache refresh failed:", err.message || err);
     });
   }
@@ -580,17 +466,23 @@ export function getDb(): DatabaseSchema {
 
 // Write Database - updates cache, updates local backup, and kicks off async cloud sync (registered in pendingWrites)
 export function writeDb(data: DatabaseSchema): void {
-  const previous = dbCache || getLocalDbBackup();
+  const prevParsed: DatabaseSchema = lastSyncedDbStr
+    ? JSON.parse(lastSyncedDbStr)
+    : { users: [], assets: [], requests: [], maintenance_logs: [], audits: [], suggestions: [], utilization_reports: [] };
+  
+  const currentCopied = JSON.parse(JSON.stringify(data));
+
   dbCache = data;
   writeLocalDbBackup(data);
 
-  if (!firestoreDb) return;
+  if (!supabaseClient) return;
 
-  // Sync to Firestore in the background
-  const syncPromise = syncToCloudFirestore(previous, data).then(() => {
+  // Sync to Supabase in the background
+  const syncPromise = syncToSupabase(prevParsed, currentCopied).then(() => {
+    lastSyncedDbStr = JSON.stringify(currentCopied);
     cacheTimestamp = Date.now(); // update cacheTimestamp on successful save
   }).catch((err) => {
-    console.error("[VIIT AMS] Error syncing database modifications to Firestore: ", err);
+    console.error("[VIIT AMS] Error syncing database modifications to Supabase: ", err);
   });
   
   pendingWrites.push(syncPromise);
@@ -599,58 +491,52 @@ export function writeDb(data: DatabaseSchema): void {
   });
 }
 
-// Perform smart background entity delta push or delete inside Firestore
-async function syncToCloudFirestore(prev: DatabaseSchema, current: DatabaseSchema) {
+// Perform smart background entity delta push or delete inside Supabase
+async function syncToSupabase(prev: DatabaseSchema, current: DatabaseSchema) {
   const syncCollection = async <T extends { id: number }>(
     colName: string,
     prevItems: T[],
     currItems: T[]
   ) => {
-    const prevMap = new Map(prevItems.map((item) => [item.id, item]));
-    const currMap = new Map(currItems.map((item) => [item.id, item]));
+    const prevMap = new Map((prevItems || []).map((item) => [item.id, item]));
+    const currMap = new Map((currItems || []).map((item) => [item.id, item]));
 
     // Updates & inserts
-    for (const item of currItems) {
+    for (const item of currItems || []) {
       const prevVal = prevMap.get(item.id);
       if (!prevVal || JSON.stringify(prevVal) !== JSON.stringify(item)) {
-        await setDoc(doc(firestoreDb, colName, String(item.id)), item);
+        await supabaseClient!.from(colName).upsert(item);
       }
     }
 
     // Deletions
-    for (const item of prevItems) {
+    for (const item of prevItems || []) {
       if (!currMap.has(item.id)) {
-        await deleteDoc(doc(firestoreDb, colName, String(item.id)));
+        await supabaseClient!.from(colName).delete().eq('id', item.id);
       }
     }
   };
 
-  await syncCollection("users", prev.users, current.users);
-  await syncCollection("assets", prev.assets, current.assets);
-  await syncCollection("requests", prev.requests, current.requests);
-  await syncCollection("maintenance_logs", prev.maintenance_logs, current.maintenance_logs);
-  await syncCollection("audits", prev.audits, current.audits);
-  
-  if (current.utilization_reports && prev.utilization_reports) {
-    await syncCollection("utilization_reports", prev.utilization_reports, current.utilization_reports);
-  }
-  
-  if (current.suggestions && prev.suggestions) {
-    await syncCollection("suggestions", prev.suggestions, current.suggestions);
-  }
+  await syncCollection("users", prev.users || [], current.users || []);
+  await syncCollection("assets", prev.assets || [], current.assets || []);
+  await syncCollection("requests", prev.requests || [], current.requests || []);
+  await syncCollection("maintenance_logs", prev.maintenance_logs || [], current.maintenance_logs || []);
+  await syncCollection("audits", prev.audits || [], current.audits || []);
+  await syncCollection("utilization_reports", prev.utilization_reports || [], current.utilization_reports || []);
+  await syncCollection("suggestions", prev.suggestions || [], current.suggestions || []);
 
   if (JSON.stringify(prev.budgets) !== JSON.stringify(current.budgets)) {
-    await setDoc(doc(firestoreDb, "budgets", "config"), current.budgets || { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null });
+    await supabaseClient!.from("budgets").upsert({ id: "config", ...current.budgets } || { id: "config", grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null });
   }
 }
 
-export function isFirestoreConnected(): boolean {
-  return firestoreDb !== null;
+export function isSupabaseConnected(): boolean {
+  return supabaseClient !== null;
 }
 
-export async function forceSyncAllToFirestore(): Promise<{ success: boolean; usersCount: number; assetsCount: number; requestsCount: number; logsCount: number; auditsCount: number; suggestionsCount: number }> {
-  if (!firestoreDb) {
-    throw new Error("Firestore is not initiated (check firebase-applet-config.json)");
+export async function forceSyncAllToSupabase(): Promise<{ success: boolean; usersCount: number; assetsCount: number; requestsCount: number; logsCount: number; auditsCount: number; suggestionsCount: number }> {
+  if (!supabaseClient) {
+    throw new Error("Supabase is not initiated (check environment variables)");
   }
 
   const current = getDb();
@@ -658,7 +544,7 @@ export async function forceSyncAllToFirestore(): Promise<{ success: boolean; use
   // Force push every collection fully
   const forcePushCollection = async <T extends { id: number }>(colName: string, items: T[]) => {
     for (const item of items) {
-      await setDoc(doc(firestoreDb, colName, String(item.id)), item);
+      await supabaseClient!.from(colName).upsert(item);
     }
   };
 
@@ -676,7 +562,7 @@ export async function forceSyncAllToFirestore(): Promise<{ success: boolean; use
     await forcePushCollection("suggestions", current.suggestions);
   }
 
-  await setDoc(doc(firestoreDb, "budgets", "config"), current.budgets || { grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null });
+  await supabaseClient!.from("budgets").upsert({ id: "config", ...current.budgets } || { id: "config", grossCapitalValuationOverride: null, cumulativeOutlaysOverride: null });
 
   return {
     success: true,

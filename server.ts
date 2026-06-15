@@ -3,7 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import apiRouter from "./server/routes";
-import { preloadDbFromFirestore, cleanupFirestore, forceSyncAllToFirestore } from "./server/database";
+import { preloadDbFromSupabase, cleanupSupabase, forceSyncAllToSupabase } from "./server/database";
 
 // Load environment variables
 dotenv.config();
@@ -12,9 +12,9 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Pre-heat database cache from Cloud Firestore
+  // Pre-heat database cache from Cloud Supabase
   try {
-    await preloadDbFromFirestore();
+    await preloadDbFromSupabase();
   } catch (err) {
     console.error("[VIIT AMS] Critical: Non-blocking preheat failed, starting with fallbacks:", err);
   }
@@ -72,21 +72,21 @@ async function startServer() {
   // Start background periodic sync timer (runs every 12 hours / 43200000ms)
   const syncInterval = setInterval(async () => {
     try {
-      console.log("[VIIT AMS] Running automatic 12-hour background Firestore synchronization...");
-      const stats = await forceSyncAllToFirestore();
+      console.log("[VIIT AMS] Running automatic 12-hour background Supabase synchronization...");
+      const stats = await forceSyncAllToSupabase();
       console.log("[VIIT AMS] 12-hour background sync completed successfully:", stats);
     } catch (err: any) {
       console.error("[VIIT AMS] Background periodic synchronization failed:", err.message || err);
     }
   }, 43200000);
 
-  // Handle graceful shutdowns for Firebase WebSocket / Stream cleanups
+  // Handle graceful shutdowns for Supabase WebSocket / Stream cleanups
   const handleShutdown = async (signal: string) => {
     console.log(`[VIIT AMS] ${signal} signal received. Starting graceful cleanup...`);
     clearInterval(syncInterval);
     server.close(async () => {
       console.log("[VIIT AMS] HTTP Server closed.");
-      await cleanupFirestore();
+      await cleanupSupabase();
       console.log("[VIIT AMS] Safe exits completed.");
       process.exit(0);
     });
