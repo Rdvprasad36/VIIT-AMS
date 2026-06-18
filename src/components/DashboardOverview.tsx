@@ -428,9 +428,6 @@ export default function DashboardOverview({
                 <FileText className="w-4 h-4 text-vignanBlue" />
                 Recent Claim details
               </h3>
-              <span className="text-[10px] bg-[#E6F0FF] text-[#004A99] px-2.5 py-1 rounded-md font-bold font-mono tracking-tight shrink-0">
-                {pendingRequests.length} OUTSTANDING
-              </span>
             </div>
 
             {/* Live Interactive pending array */}
@@ -440,14 +437,6 @@ export default function DashboardOverview({
                   <Clock className="w-7 h-7 text-slate-300 mx-auto mb-2" />
                   <p className="text-xs font-bold text-slate-700">All requisitions processed</p>
                   <p className="text-[10px] text-slate-450 mt-1 max-w-xs mx-auto">There are currently no claimant allocation cards awaiting administrative authorization actions.</p>
-                  {setActiveTab && (
-                    <button 
-                      onClick={() => setActiveTab("requests")} 
-                      className="mt-3 text-[10px] text-vignanBlue font-bold hover:underline cursor-pointer"
-                    >
-                      View Allocations Ledger Logs_
-                    </button>
-                  )}
                 </div>
               ) : (
                 pendingRequests.map((req) => (
@@ -469,9 +458,9 @@ export default function DashboardOverview({
                     </div>
 
                     {/* Quick evaluation selector button */}
-                    {(user.role === "super_admin" || user.role === "asset_manager" || user.role === "web_developer") && onActionRequest ? (
+                    {(user.role === "super_admin" || user.role === "asset_manager" || user.role === "web_developer") && setActiveTab ? (
                       <button 
-                        onClick={() => setActiveActionReq(req)}
+                        onClick={() => setActiveTab("requests")}
                         className="px-3 py-1 bg-vignanBlue hover:bg-vignanBlue-hover text-white text-[10px] font-bold rounded-lg shadow-xs transition-colors cursor-pointer shrink-0 ml-2"
                       >
                         Action_
@@ -485,18 +474,6 @@ export default function DashboardOverview({
                 ))
               )}
             </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 mt-4 flex justify-between items-center text-[11px] text-slate-500">
-            <span>Filing updates integrated directly</span>
-            {setActiveTab && (
-              <button 
-                onClick={() => setActiveTab("requests")} 
-                className="text-vignanBlue hover:underline font-bold cursor-pointer"
-              >
-                Open Allocation Desk →
-              </button>
-            )}
           </div>
 
         </div>

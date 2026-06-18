@@ -173,7 +173,9 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 500): Pro
       return result;
     } catch (err: any) {
       attempt++;
-      if (attempt >= retries) {
+      const errMsg = String(err.message || err || "");
+      const isMissingTable = errMsg.includes("Could not find the table") || errMsg.includes("does not exist") || errMsg.includes("42P01") || errMsg.includes("PGRST116");
+      if (attempt >= retries || isMissingTable) {
         throw err;
       }
       console.warn(`[VIIT AMS] Connection transient warning. Retrying... (attempt ${attempt}/${retries}):`, err.message || err);
