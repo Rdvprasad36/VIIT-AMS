@@ -537,8 +537,8 @@ export default function AssetList({
                           </button>
                         )}
 
-                        {/* Delete for system admins */}
-                        {(user.role === "super_admin" || user.role === "web_developer") && (
+                        {/* Delete for system admins & asset managers */}
+                        {(user.role === "super_admin" || user.role === "web_developer" || user.role === "asset_manager") && (
                           <div className="flex items-center gap-1">
                             {assetToConfirmDelete === asset.id ? (
                               <div className="flex items-center gap-1 animate-slide-up bg-rose-50 p-1 rounded border border-rose-200">

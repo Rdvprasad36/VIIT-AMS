@@ -843,8 +843,8 @@ router.post("/assets/:id/request-return", verifyToken, (req: AuthenticatedReques
   res.json({ message: "Asset return requested successfully. Awaiting Asset Manager confirmation.", asset });
 });
 
-// Delete Asset (Super Admin only for data protection)
-router.delete("/assets/:id", verifyToken, authorize(["super_admin", "web_developer"]), (req: AuthenticatedRequest, res) => {
+// Delete Asset (Super Admin, Web Developer & Asset Manager for data protection)
+router.delete("/assets/:id", verifyToken, authorize(["super_admin", "web_developer", "asset_manager"]), (req: AuthenticatedRequest, res) => {
   const assetId = parseInt(req.params.id);
 
   const db = getDb();
