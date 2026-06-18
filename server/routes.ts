@@ -101,28 +101,6 @@ router.post("/auth/login", async (req, res) => {
     return res.status(401).json({ error: "Invalid credentials. Email not found." });
   }
 
-  // Auto-register missing local test users into Supabase Auth seamlessly if configured
-  if (supabaseClient) {
-    // Sync local test user into Supabase Auth
-    try {
-      await supabaseClient.auth.signUp({
-        email: user.email,
-        password: user.password_plain || password,
-      });
-    } catch (err) {}
-    
-    // Attempt actual Supabase sign-in
-    try {
-      await supabaseClient.auth.signInWithPassword({
-        email,
-        password
-      });
-      // If error, we still fall back to local DB users below for test accounts to work seamlessly without disrupting the UI
-    } catch(err) {
-      console.error("Supabase auth transient warning (falling back to generic verification):", err);
-    }
-  }
-
   if (expectedRole) {
     if (expectedRole === "super_admin") {
       if (user.role !== "super_admin" && user.role !== "web_developer") {

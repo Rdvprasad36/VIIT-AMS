@@ -855,6 +855,18 @@ export default function App() {
                     <p className="text-xs text-slate-400 mt-1.5">Select a System Cell portal desk below to load institutional credentials card.</p>
                   </div>
 
+                  <div className="bg-sky-50 border border-sky-150 p-4 rounded-2xl flex items-start gap-3">
+                    <div className="p-1.5 bg-white rounded-lg text-sky-600 border border-sky-100 shrink-0">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-xs text-sky-950">Welcome to AMS Portal</p>
+                      <p className="text-[10px] text-sky-800 mt-0.5 leading-normal font-medium">
+                        Enter your institutional email and password directly to login. No email activation or link confirmation is required.
+                      </p>
+                    </div>
+                  </div>
+
                   {authError && (
                     <div className="p-4 bg-rose-50 border border-rose-150 rounded-xl flex items-start gap-2 text-xs text-rose-700">
                       <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
